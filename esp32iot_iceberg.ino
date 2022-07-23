@@ -4,6 +4,7 @@
  *  Created on: 20.07.2019
  *
  */
+#define HAS_SSL 0
 
 #include <Arduino.h>
 
@@ -11,8 +12,10 @@
 //#include <WiFiMulti.h>
 //#include <WiFiClientSecure.h>
 #include <WiFiClient.h>
+#include "SerialUI.h"
 #include "Settings.h"
 #include "SocketIOmanager.h"
+#include "wifi_custom.h"
 #include <ArduinoJson.h>
 
 
@@ -212,8 +215,14 @@ void setup() {
   }
   Serial.println("AP connected");
 
+  bool isSSL=true;
   // server address, port and URL
-  socketIO.begin(Server_ip, 3000, "/socket.io/?EIO=4");
+  if(isSSL){// (SSL) https:// or wss://
+    socketIO.beginSSL(Server_ip, Server_port, "/socket.io/?EIO=3"); //confirmed
+  }else{ //http:// or ws://
+//  socketIO.begin(Server_ip, 3000, "/socket.io/?EIO=4");
+    socketIO.begin(Server_ip, 3000, "/socket.io/?EIO=3"); // maybe 3..?  
+  }
   // event handler
   socketIO.onEvent(socketIOEvent);
 };
@@ -244,6 +253,9 @@ void loop() {
 
   if(now - messageTimestamp > 2000) {
       messageTimestamp = now;
+      if(true){
+        enroll_serviceProfile();
+      }
 
       // creat JSON message for Socket.IO (event)
       DynamicJsonDocument doc(1024);
@@ -252,7 +264,7 @@ void loop() {
       // add evnet name
       // Hint: socket.on('event_name', ....
 //        array.add("event_name");
-      array.add("message");
+      array.add("msg-v0");//header:message-version-0 (test header)
 
       // add payload (parameters) for the event
       JsonObject param1 = array.createNestedObject();
@@ -267,7 +279,6 @@ void loop() {
       // Send event
       socketIO.sendEVENT(output);
 
-
       String str_temp;
       str_temp = GetJsonString_example();
       socketIO.sendEVENT(str_temp);
@@ -278,22 +289,36 @@ void loop() {
 //      socketIO.sendEVENT(str_temp);
 //      Serial.print("transmitting3:");
 //      Serial.println(str_temp);
-//
-//      str_temp = GetJsonString_DevParams();
-//      socketIO.sendEVENT(str_temp);
-//      Serial.print("transmitting4:");
-//      Serial.println(str_temp);
-
 
       main_task();
-      
   }
+}
+
+void enroll_serviceProfile(void){
+  DynamicJsonDocument doc(1024);
+  JsonArray array = doc.to<JsonArray>();
+  array.add("Start_Service");
+  JsonObject root = array.createNestedObject();
+  JsonObject profile = root.createNestedObject("profile");
+  profile["room"]="my-little-tiny-room";
+  profile["type"]="tsSensor";
+  profile["description"]="tsSensor";
+  JsonObject dev_info = root.createNestedObject("contents");
+  dev_info["sensor"] = "dummy sensor";
+
+  // JSON to String (serializion)
+  String str;
+  serializeJson(doc, str);
+  socketIO.sendEVENT(str);
+  Serial.println("ENROLL:");
+  Serial.println(str);
+  return;
 }
 
 void main_task(void){
   DynamicJsonDocument doc(1024);
   JsonArray array = doc.to<JsonArray>();
-  array.add("data");
+  array.add("msg-v0");
   JsonObject root = array.createNestedObject();
 
   JsonArray sensor_data[2];

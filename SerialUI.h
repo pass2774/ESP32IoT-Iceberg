@@ -1,6 +1,17 @@
 #include "Settings.h"
 //#define USE_SERIAL Serial
 
+
+void print_settings(){
+  Serial.println("--------Current settings--------");
+  Serial.print("Device name: ");   Serial.println(Dev_name);
+  Serial.print("Server ip: ");   Serial.println(Server_ip);
+  Serial.print("Server port: ");   Serial.println(Server_port);
+  Serial.print("AP name: ");   Serial.println(AP_id);
+  Serial.print("AP password: ");   Serial.println(AP_pw);
+  Serial.println("--------------------------------");
+}
+
 void parse_packet(String str){
   char buf_eeprom[32];
   String header,data;
@@ -111,14 +122,4 @@ void parse_packet(String str){
     
   }
   return;
-}
-
-void print_settings(){
-  Serial.println("--------Current settings--------");
-  Serial.print("Device name: ");   Serial.println(Dev_name);
-  Serial.print("Server ip: ");   Serial.println(Server_ip);
-  Serial.print("Server port: ");   Serial.println(Server_port);
-  Serial.print("AP name: ");   Serial.println(AP_id);
-  Serial.print("AP password: ");   Serial.println(AP_pw);
-  Serial.println("--------------------------------");
 }

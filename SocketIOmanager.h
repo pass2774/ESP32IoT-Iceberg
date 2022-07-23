@@ -54,7 +54,7 @@ String GetJsonString_DevParams(void){
 String GetJsonString_example(void){
   DynamicJsonDocument doc(1024);
   JsonArray array = doc.to<JsonArray>();
-  array.add("greetings");
+  array.add("msg-v0");
   JsonObject root = array.createNestedObject();
   JsonObject dev_info = root.createNestedObject("dev_info");
   dev_info["id"] = devInfo.id;
