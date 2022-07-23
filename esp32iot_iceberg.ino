@@ -299,10 +299,9 @@ void enroll_serviceProfile(void){
   JsonArray array = doc.to<JsonArray>();
   array.add("Start_Service");
   JsonObject root = array.createNestedObject();
-  JsonObject profile = root.createNestedObject("profile");
-  profile["room"]="my-little-tiny-room";
-  profile["type"]="tsSensor";
-  profile["description"]="tsSensor";
+  root["room"]="my-little-tiny-room";
+  root["type"]="tsSensor";
+  root["description"]="tsSensor";
   JsonObject dev_info = root.createNestedObject("contents");
   dev_info["sensor"] = "dummy sensor";
 
