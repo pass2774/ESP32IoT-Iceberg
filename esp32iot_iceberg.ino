@@ -35,8 +35,8 @@ MAX30105 particleSensor;
 #define PIN_LED0 16
 #define PIN_LED1 17
 
-unsigned long sensor_sampling_interval[NUM_SENSOR_CH]={1000,1000}; // ms
-unsigned long sensor_sampling_BufSize[NUM_SENSOR_CH]={5,5}; // ms
+unsigned long sensor_sampling_interval[NUM_SENSOR_CH]={100,100}; // ms
+unsigned long sensor_sampling_BufSize[NUM_SENSOR_CH]={10,10}; // ms
 bool flag_packet_ready = false;
 unsigned long StartingTime=0;
 uint64_t current_time;
@@ -258,14 +258,14 @@ void setup() {
 
   // Double-core processing
   // Now set up two tasks to run independently.
-  // xTaskCreatePinnedToCore(
-  //   TaskSensor
-  //   ,  "TaskSensor"   // A name just for humans
-  //   ,  2048  // This stack size can be checked & adjusted by reading the Stack HighwaterMaskMonitor5
-  //   ,  NULL
-  //   ,  2  // Priority, with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest.
-  //   ,  NULL 
-  //   ,  ARDUINO_RUNNING_CORE);
+  xTaskCreatePinnedToCore(
+    TaskSensor
+    ,  "TaskSensor"   // A name just for humans
+    ,  4096  // This stack size can be checked & adjusted by reading the Stack HighwaterMaskMonitor5
+    ,  NULL
+    ,  2  // Priority, with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest.
+    ,  NULL 
+    ,  ARDUINO_RUNNING_CORE);
 
   xTaskCreatePinnedToCore(
     TaskSocketIO
@@ -350,9 +350,6 @@ void TaskSocketIO(void *pvParameters){  // This is a task.
   (void) pvParameters;
   //wait for device warming up
 
-
-
-
   vTaskDelay(1000);  // ms
   // bool b_serverTimeReceived=true;
   // while(false){
@@ -379,18 +376,17 @@ void TaskSocketIO(void *pvParameters){  // This is a task.
     socketIO.loop();
 
     uint64_t now = millis();
-    flag_packet_ready=true;
     if(flag_packet_ready){
     //   // Serial.println("thread_sio:"+str_packet);
       digitalWrite(PIN_LED1, HIGH);   // turn the LED on (HIGH is the voltage level)
-    //   // socketIO.sendEVENT(str);
-      digitalWrite(PIN_LED1, LOW);   // turn the LED on (HIGH is the voltage level)
       Serial.println("socket tx triggered");
-    //   socketIO.sendEVENT(txPacket);
+      socketIO.sendEVENT(txPacket);
+      digitalWrite(PIN_LED1, LOW);   // turn the LED on (HIGH is the voltage level)
+      flag_packet_ready=false;
 
-        if(true){
-          enroll_serviceProfile();
-        }
+      if(true){
+        enroll_serviceProfile();
+      }
 
         // creat JSON message for Socket.IO (event)
         DynamicJsonDocument doc(1024);
@@ -420,7 +416,6 @@ void TaskSocketIO(void *pvParameters){  // This is a task.
         // socketIO.sendEVENT(str_temp);
         // Serial.print("transmitting2:");
         // Serial.println(str_temp);
-      flag_packet_ready=false;
     }
   }
 }
@@ -428,24 +423,14 @@ void TaskSocketIO(void *pvParameters){  // This is a task.
 void TaskSensor(void *pvParameters) { // This is a task.
   (void) pvParameters;
 
-  unsigned long iter[NUM_SENSOR_CH]={0,0};
   static unsigned long SensorTimeLog0;
 
   Wire.begin();
   digitalWrite(PIN_LED0, HIGH);   // turn the LED on (HIGH is the voltage level)
   digitalWrite(PIN_LED1, HIGH);   // turn the LED on (HIGH is the voltage level)
-  String str_packet_data[NUM_SENSOR_CH];
-  uint8_t sensorChannel=0;
 
-  SensorTimeLog0 = millis();
-  iter[0]=0;
-  iter[1]=0;
   vTaskDelay(500);  // ms
 
-  // while(1){
-  //   vTaskDelay(500);  // ms
-
-  // }
   main_task();
   // current_time = ws_serverTime_ms +millis();
   // str_timestamp = timeClient.getFormattedDate((unsigned long)(current_time/1000))+"."+String((unsigned int)(current_time%1000));
@@ -453,24 +438,6 @@ void TaskSensor(void *pvParameters) { // This is a task.
 
 
 void main_task(void){
-  DynamicJsonDocument doc(1024);
-  JsonArray array = doc.to<JsonArray>();
-  array.add("msg-v0");
-  JsonObject root = array.createNestedObject();
-
-  JsonArray sensor_data[2];
-  JsonObject sensor_info[2];
-  sensor_info[0]= root.createNestedObject("info_sen0");
-  sensor_info[0]= root.createNestedObject("info_sen1");
-  sensor_info[0]["name"]="PPR_red";
-  sensor_info[0]["dtype"]="uint16_t";
-  sensor_info[0]["period"]="20ms";
-  sensor_info[0]["unit"]="raw";
-  
-  sensor_info[1]["name"]="PPR_ir";
-  sensor_info[1]["dtype"]="uint16_t";
-  sensor_info[1]["period"]="20ms";
-  sensor_info[2]["unit"]="raw";
 
   static unsigned long SensorTimeLog0;
   unsigned long iter[NUM_SENSOR_CH]={0,0};
@@ -481,8 +448,24 @@ void main_task(void){
   iter[1]=0;
   vTaskDelay(500);  // ms
 
-
   while(true){
+    DynamicJsonDocument doc(1024);
+    JsonArray array = doc.to<JsonArray>();
+    array.add("msg-v0");
+    JsonObject root = array.createNestedObject();
+    JsonArray sensor_data[2];
+    JsonObject sensor_info[2];
+    sensor_info[0]= root.createNestedObject("info_sen0");
+    sensor_info[1]= root.createNestedObject("info_sen1");
+    sensor_info[0]["name"]="PPR_red";
+    sensor_info[0]["dtype"]="uint16_t";
+    sensor_info[0]["period"]="20ms";
+    sensor_info[0]["unit"]="raw";
+
+    sensor_info[1]["name"]="PPR_ir";
+    sensor_info[1]["dtype"]="uint16_t";
+    sensor_info[1]["period"]="20ms";
+    sensor_info[1]["unit"]="raw";
     sensor_data[0] = root.createNestedArray("ch0");
     sensor_data[1] = root.createNestedArray("ch1");
     while(true){
@@ -507,14 +490,17 @@ void main_task(void){
           sensor_data[i].add(ppg[i]);
         }
         iter[sensorChannel]++;
-      }
-      if(iter[0]%sensor_sampling_BufSize[0]==0){
-        serializeJson(doc, txPacket);
+        if(iter[0]%sensor_sampling_BufSize[0]==0){
+          Serial.println("in the if region");
+          txPacket="";
+          serializeJson(doc, txPacket);
 
-        Serial.print("DATA:");
-        Serial.println(txPacket);
-        flag_packet_ready = true;
-        break;
+          Serial.print("DATA:");
+          Serial.println(txPacket);
+          flag_packet_ready = true;
+          break;
+        }
+
       }
     }
   }
