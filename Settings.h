@@ -1,13 +1,20 @@
 #ifndef __SETTINGS__
 #define __SETTINGS__
 #include "EEPROM.h"
+//ESP32 by Espressif Systems Version 2.0.5. Other version may have different EEPROMClass methods
+// EEPROMClass  INIT_FLAG("INIT_FLAG", 0x40);
+// EEPROMClass  DEV_NAME("dev_name", 0x100);
+// EEPROMClass  SERVER_IP("server_ip", 0x200);
+// EEPROMClass  SERVER_PORT("server_port", 10);
+// EEPROMClass  AP_NAME("ap_id", 0x100);
+// EEPROMClass  AP_PASSWORD("ap_pw", 0x100);
+EEPROMClass  INIT_FLAG("INIT_FLAG");
+EEPROMClass  DEV_NAME("dev_name");
+EEPROMClass  SERVER_IP("server_ip");
+EEPROMClass  SERVER_PORT("server_port");
+EEPROMClass  AP_NAME("ap_id");
+EEPROMClass  AP_PASSWORD("ap_pw");
 
-EEPROMClass  INIT_FLAG("INIT_FLAG", 0x40);
-EEPROMClass  DEV_NAME("dev_name", 0x100);
-EEPROMClass  SERVER_IP("server_ip", 0x200);
-EEPROMClass  SERVER_PORT("server_port", 10);
-EEPROMClass  AP_NAME("ap_id", 0x100);
-EEPROMClass  AP_PASSWORD("ap_pw", 0x100);
 //char* ssid = "Compass";
 //char* password = "iepstt92";
 String Dev_name = "exampleDev";
@@ -44,40 +51,39 @@ struct DevParams{
 };
 DevParams devParams;
 
-
 bool init_eeprom(){
-    if (!INIT_FLAG.begin(INIT_FLAG.length())) {
+    if (!INIT_FLAG.begin(0x40)) {
     Serial.println("Failed to initialize EEPROM:INIT_FLAG");
     Serial.println("Restarting...");
     delay(1000);
     ESP.restart();
   }
-  if (!DEV_NAME.begin(DEV_NAME.length())) {
+  if (!DEV_NAME.begin(0x100)) {
     Serial.println("Failed to initialize EEPROM:DEV_NAME");
     Serial.println("Restarting...");
     delay(1000);
     ESP.restart();
   }
-  if (!SERVER_IP.begin(SERVER_IP.length())) {
+  if (!SERVER_IP.begin(0x200)) {
     Serial.println("Failed to initialize EEPROM:SERVER_IP");
     Serial.println("Restarting...");
     delay(1000);
     ESP.restart();
   }
-  if (!SERVER_PORT.begin(SERVER_PORT.length())) {
+  if (!SERVER_PORT.begin(0x0A)) {
     Serial.println("Failed to initialize EEPROM:SERVER_PORT");
     Serial.println("Restarting...");
     delay(1000);
     ESP.restart();
   }
   
-  if (!AP_NAME.begin(AP_NAME.length())) {
+  if (!AP_NAME.begin(0x100)) {
     Serial.println("Failed to initialize EEPROM:AP_NAME");
     Serial.println("Restarting...");
     delay(1000);
     ESP.restart();
   }
-  if (!AP_PASSWORD.begin(AP_PASSWORD.length())) {
+  if (!AP_PASSWORD.begin(0x100)) {
     Serial.println("Failed to initialize EEPROM:AP_PASSWORD");
     Serial.println("Restarting...");
     delay(1000);

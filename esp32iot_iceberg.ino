@@ -24,6 +24,27 @@
 //WiFiMulti WiFiMulti;
 SocketIOclient socketIO;
 
+
+#include <Wire.h>
+#include "MAX30105.h" //MAX30102 and MAX30105 share the same code
+MAX30105 particleSensor;
+
+#define N_of_sample 5
+#define NUM_SENSOR_CH 2
+// LED
+#define PIN_LED0 16
+#define PIN_LED1 17
+
+unsigned long sensor_sampling_interval[NUM_SENSOR_CH]={100,100}; // ms
+unsigned long sensor_sampling_BufSize[NUM_SENSOR_CH]={5,5}; // ms
+bool flag_packet_ready = false;
+unsigned long StartingTime=0;
+uint64_t current_time;
+String txPacket;
+String rxPacket;
+
+
+
 void socketIOEvent(socketIOmessageType_t type, uint8_t * payload, size_t length) {
     switch(type) {
         case sIOtype_DISCONNECT:
@@ -144,11 +165,18 @@ void setup() {
 //    Serial.setDebugOutput(true);
 
   Serial.println();
-  Serial.println("Serial on");
+  Serial.println("Max30102/Max30105 Example");
   Serial.println("Welcome. Input 'help' to get information");
   delay(100);
 
+  // Initialize sensor
+  if (particleSensor.begin() == false){
+    Serial.println("MAX30105 was not found. Please check wiring/power. ");
+    while (1);
+  }
+  particleSensor.setup(); //Configure sensor. Use 6.4mA for LED drive
 
+  // Initialize EEPROM
   init_eeprom();
   char buf_eeprom[32];
 
@@ -225,6 +253,29 @@ void setup() {
   }
   // event handler
   socketIO.onEvent(socketIOEvent);
+
+
+
+  // Double-core processing
+  // Now set up two tasks to run independently.
+  xTaskCreatePinnedToCore(
+    TaskSensor
+    ,  "TaskSensor"   // A name just for humans
+    ,  2048  // This stack size can be checked & adjusted by reading the Stack HighwaterMaskMonitor5
+    ,  NULL
+    ,  2  // Priority, with 3 (configMAX_PRIORITIES - 1) being the highest, and 0 being the lowest.
+    ,  NULL 
+    ,  ARDUINO_RUNNING_CORE);
+
+  xTaskCreatePinnedToCore(
+    TaskSocketIO
+    ,  "TaskSocketIO"
+    ,  2048  // Stack size
+    ,  NULL
+    ,  1  // Priority
+    ,  NULL 
+    ,  ARDUINO_RUNNING_CORE);
+
 };
 
 
@@ -234,64 +285,238 @@ String readString;
 
 void loop() {
 
-  while(Serial.available()) {
-    delay(1);  //delay to allow buffer to fill 
-    if (Serial.available() >0) {
-      char c = Serial.read();  //gets one byte from serial buffer
-      readString += c; //makes the string readString
+//   while(Serial.available()) {
+//     delay(1);  //delay to allow buffer to fill 
+//     if (Serial.available() >0) {
+//       char c = Serial.read();  //gets one byte from serial buffer
+//       readString += c; //makes the string readString
+//     }
+//   }
+  
+//   if (readString.length() >0) {
+//     Serial.println(readString); //see what was received
+//     parse_packet(readString);
+//     readString="";
+//   }
+  
+//   socketIO.loop();
+//   uint64_t now = millis();
+
+//   if(now - messageTimestamp > 2000) {
+//       messageTimestamp = now;
+//       if(true){
+//         enroll_serviceProfile();
+//       }
+
+//       // creat JSON message for Socket.IO (event)
+//       DynamicJsonDocument doc(1024);
+//       JsonArray array = doc.to<JsonArray>();
+
+//       // add evnet name
+//       // Hint: socket.on('event_name', ....
+// //        array.add("event_name");
+//       array.add("msg-v0");//header:message-version-0 (test header)
+
+//       // add payload (parameters) for the event
+//       JsonObject param1 = array.createNestedObject();
+//       param1["now"] = (uint32_t) now;
+
+//       // JSON to String (serializion)
+//       String output;
+//       serializeJson(doc, output);
+//       // Print JSON for debugging
+//       Serial.print("transmitting:");
+//       Serial.println(output);
+//       // Send event
+//       socketIO.sendEVENT(output);
+
+//       String str_temp;
+//       str_temp = GetJsonString_example();
+//       socketIO.sendEVENT(str_temp);
+//       Serial.print("transmitting2:");
+//       Serial.println(str_temp);
+
+// //      str_temp = GetJsonString_DevInfo();
+// //      socketIO.sendEVENT(str_temp);
+// //      Serial.print("transmitting3:");
+// //      Serial.println(str_temp);
+
+//       main_task();
+//   }
+}
+
+void TaskSensor(void *pvParameters) { // This is a task.
+  (void) pvParameters;
+
+  unsigned long iter[NUM_SENSOR_CH]={0,0};
+  static unsigned long SensorTimeLog0;
+
+  Wire.begin();
+
+  
+  digitalWrite(PIN_LED0, HIGH);   // turn the LED on (HIGH is the voltage level)
+  digitalWrite(PIN_LED1, HIGH);   // turn the LED on (HIGH is the voltage level)
+  String str_packet_data[NUM_SENSOR_CH];
+  uint8_t sensorChannel=0;
+
+  SensorTimeLog0 = millis();
+  iter[0]=0;
+  iter[1]=0;
+  vTaskDelay(500);  // ms
+
+  main_task();
+  // current_time = ws_serverTime_ms +millis();
+  // str_timestamp = timeClient.getFormattedDate((unsigned long)(current_time/1000))+"."+String((unsigned int)(current_time%1000));
+}
+
+void TaskSocketIO(void *pvParameters){  // This is a task.
+  (void) pvParameters;
+  //wait for device warming up
+  vTaskDelay(1000);  // ms
+  bool b_serverTimeReceived=true;
+  while(false){
+    Serial.println("thread2:Requesting Server time");
+    Serial.println("(not supported for now. We don't get server time.)");
+    digitalWrite(PIN_LED1, HIGH);   // turn the LED on (HIGH is the voltage level)
+    digitalWrite(PIN_LED1, LOW);   // turn the LED on (HIGH is the voltage level)
+    vTaskDelay(1000);  // ms
+  }
+  while(true){
+    vTaskDelay(100);  // ms
+    while(Serial.available()) {
+      delay(1);  //delay to allow buffer to fill 
+      if (Serial.available() >0) {
+        char c = Serial.read();  //gets one byte from serial buffer
+        readString += c; //makes the string readString
+      }
+    }
+    if (readString.length() >0) {
+      Serial.println(readString); //see what was received
+      parse_packet(readString);
+      readString="";
+    }    
+    socketIO.loop();
+
+    if(flag_packet_ready){
+      // Serial.println("thread_sio:"+str_packet);
+      // digitalWrite(PIN_LED1, HIGH);   // turn the LED on (HIGH is the voltage level)
+      // socketIO.sendEVENT(str);
+      // digitalWrite(PIN_LED1, LOW);   // turn the LED on (HIGH is the voltage level)
+
+
+      flag_packet_ready=false;
+    }
+
+    uint64_t now = millis();
+/*
+    if(now - messageTimestamp > 2000) {
+        messageTimestamp = now;
+        if(true){
+          enroll_serviceProfile();
+        }
+
+        // creat JSON message for Socket.IO (event)
+        DynamicJsonDocument doc(1024);
+        JsonArray array = doc.to<JsonArray>();
+
+        // add evnet name
+        // Hint: socket.on('event_name', ....
+        // array.add("event_name");
+        array.add("msg-v0");//header:message-version-0 (test header)
+
+        // add payload (parameters) for the event
+        JsonObject param1 = array.createNestedObject();
+        param1["now"] = (uint32_t) now;
+
+        // JSON to String (serializion)
+        String output;
+        serializeJson(doc, output);
+        // Print JSON for debugging
+        Serial.print("transmitting:");
+        Serial.println(output);
+        // Send event
+        socketIO.sendEVENT(output);
+
+        String str_temp;
+        str_temp = GetJsonString_example();
+        socketIO.sendEVENT(str_temp);
+        Serial.print("transmitting2:");
+        Serial.println(str_temp);
+    }
+
+    */
+  }
+}
+
+
+
+void main_task(void){
+  DynamicJsonDocument doc(1024);
+  JsonArray array = doc.to<JsonArray>();
+  array.add("msg-v0");
+  JsonObject root = array.createNestedObject();
+
+  JsonArray sensor_data[2];
+  JsonObject sensor_info[2];
+  sensor_info[0]= root.createNestedObject("info_sen0");
+  sensor_info[0]= root.createNestedObject("info_sen1");
+  sensor_info[0]["name"]="PPR_red";
+  sensor_info[0]["dtype"]="uint16_t";
+  sensor_info[0]["period"]="20ms";
+  sensor_info[0]["unit"]="raw";
+  
+  sensor_info[1]["name"]="PPR_ir";
+  sensor_info[1]["dtype"]="uint16_t";
+  sensor_info[1]["period"]="20ms";
+  sensor_info[2]["unit"]="raw";
+
+  static unsigned long SensorTimeLog0;
+  unsigned long iter[NUM_SENSOR_CH]={0,0};
+  uint8_t sensorChannel=0;
+  
+  SensorTimeLog0 = millis();
+  iter[0]=0;
+  iter[1]=0;
+  vTaskDelay(500);  // ms
+
+
+  while(true){
+    sensor_data[0] = root.createNestedArray("ch0");
+    sensor_data[1] = root.createNestedArray("ch1");
+    while(true){
+      digitalWrite(PIN_LED0, LOW);   // turn the LED on (HIGH is the voltage level)
+      vTaskDelay(2);  // ms
+      digitalWrite(PIN_LED0, HIGH);   // turn the LED on (HIGH is the voltage level)
+      sensorChannel=0;
+      if(millis()-SensorTimeLog0>(sensor_sampling_interval[sensorChannel]*iter[sensorChannel])){ // unit: ms
+        int32_t ppg[3];
+        ppg[0]=particleSensor.getRed();
+        ppg[1]=particleSensor.getIR();
+        ppg[2]=particleSensor.getGreen(); 
+        Serial.print(" R:");
+        Serial.print(ppg[0]);
+        Serial.print(", IR:");
+        Serial.print(ppg[1]);
+        Serial.print(", G:");
+        Serial.print(ppg[2]);
+        Serial.println("");
+
+        for(int i=0;i<2;i++){
+          sensor_data[i].add(ppg[i]);
+        }
+        iter[sensorChannel]++;
+      }
+      if(iter[0]%sensor_sampling_BufSize[0]==0){
+        serializeJson(doc, txPacket);
+        socketIO.sendEVENT(txPacket);
+        Serial.print("DATA:");
+        Serial.println(txPacket);
+        flag_packet_ready = true;
+        break;
+      }
     }
   }
-  
-  if (readString.length() >0) {
-    Serial.println(readString); //see what was received
-    parse_packet(readString);
-    readString="";
-  }
-  
-  socketIO.loop();
-  uint64_t now = millis();
-
-  if(now - messageTimestamp > 2000) {
-      messageTimestamp = now;
-      if(true){
-        enroll_serviceProfile();
-      }
-
-      // creat JSON message for Socket.IO (event)
-      DynamicJsonDocument doc(1024);
-      JsonArray array = doc.to<JsonArray>();
-
-      // add evnet name
-      // Hint: socket.on('event_name', ....
-//        array.add("event_name");
-      array.add("msg-v0");//header:message-version-0 (test header)
-
-      // add payload (parameters) for the event
-      JsonObject param1 = array.createNestedObject();
-      param1["now"] = (uint32_t) now;
-
-      // JSON to String (serializion)
-      String output;
-      serializeJson(doc, output);
-      // Print JSON for debugging
-      Serial.print("transmitting:");
-      Serial.println(output);
-      // Send event
-      socketIO.sendEVENT(output);
-
-      String str_temp;
-      str_temp = GetJsonString_example();
-      socketIO.sendEVENT(str_temp);
-      Serial.print("transmitting2:");
-      Serial.println(str_temp);
-
-//      str_temp = GetJsonString_DevInfo();
-//      socketIO.sendEVENT(str_temp);
-//      Serial.print("transmitting3:");
-//      Serial.println(str_temp);
-
-      main_task();
-  }
+  return; 
 }
 
 void enroll_serviceProfile(void){
@@ -314,6 +539,30 @@ void enroll_serviceProfile(void){
   return;
 }
 
+
+
+/*
+void SensorInit_DPS310(){
+  int32_t Pressure[N_of_sample];
+  int32_t Temperature[N_of_sample];
+  //DPS310 barometer
+  Serial.print("Connecting to DPS310...");
+  if (! dps.begin_I2C(0x76)) { //0x77 or 76
+  }else{
+    Serial.println("DPS OK!");
+  }
+  // Setup highest precision
+//  dps.configurePressure(DPS310_64HZ, DPS310_64SAMPLES);
+//  dps.configureTemperature(DPS310_64HZ, DPS310_64SAMPLES);
+  dps.configurePressure(DPS310_64HZ, DPS310_32SAMPLES);
+  dps.configureTemperature(DPS310_32HZ, DPS310_32SAMPLES);
+
+  dps_temp->printSensorDetails();
+  dps_pressure->printSensorDetails();
+}
+
+*/
+/*
 void main_task(void){
   DynamicJsonDocument doc(1024);
   JsonArray array = doc.to<JsonArray>();
@@ -334,6 +583,14 @@ void main_task(void){
   sensor_data[1].add(30);
   sensor_data[1].add(40);
 
+  debug.print(" R[");
+  debug.print(particleSensor.getRed());
+  debug.print("] IR[");
+  debug.print(particleSensor.getIR());
+  debug.print("] G[");
+  debug.print(particleSensor.getGreen());
+  debug.print("]");
+
 
   // JSON to String (serializion)
   String str;
@@ -343,3 +600,4 @@ void main_task(void){
   Serial.println(str);
   return; 
 }
+*/
