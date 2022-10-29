@@ -2,6 +2,7 @@
 #define __SETTINGS__
 #include "EEPROM.h"
 //ESP32 by Espressif Systems Version 2.0.5. Other version may have different EEPROMClass methods
+
 // EEPROMClass  INIT_FLAG("INIT_FLAG", 0x40);
 // EEPROMClass  DEV_NAME("dev_name", 0x100);
 // EEPROMClass  SERVER_IP("server_ip", 0x200);

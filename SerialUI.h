@@ -35,7 +35,7 @@ void parse_packet(String str){
     INIT_FLAG.writeString(0, "\0");
     INIT_FLAG.commit();
     Serial.println("Input 'reset' to apply the result.(restart)");
-    delay(3000);    
+    vTaskDelay(3000);    
   }else if(header.equalsIgnoreCase("help")){
     Serial.println("--------Available commands--------");
     Serial.println("[b]help");
@@ -54,7 +54,7 @@ void parse_packet(String str){
     Serial.println("APPassword:myRouterPW");
     Serial.println("----------------------------------");
     Serial.println("Pausing for 5 seconds.");
-    delay(5000);
+    vTaskDelay(5000);
     Serial.println("");
     Serial.println("");
   }
@@ -69,7 +69,7 @@ void parse_packet(String str){
     AP_PASSWORD.get(0,buf_eeprom);
     AP_pw=String(buf_eeprom);
     print_settings();
-    delay(5000);
+    vTaskDelay(5000);
   }else if(header.equalsIgnoreCase("DeviceName")){
     Serial.println("DeviceName has been updated.");
     Serial.print("New name: ");
@@ -78,7 +78,7 @@ void parse_packet(String str){
     DEV_NAME.writeString(0, Dev_name);
     DEV_NAME.commit();
     Serial.println("Input reset to apply the result.(restart)");
-    delay(3000);    
+    vTaskDelay(3000);    
     
   }else if(header=="ServerIP"){
     Serial.println("ServerIP has been updated");
@@ -88,7 +88,7 @@ void parse_packet(String str){
     SERVER_IP.writeString(0, Server_ip);
     SERVER_IP.commit();
     Serial.println("Input reset to apply the result.(restart)");
-    delay(3000);    
+    vTaskDelay(3000);    
     
   }else if(header=="ServerPort"){
     Serial.println("ServerPort has been updated");
@@ -98,7 +98,7 @@ void parse_packet(String str){
     SERVER_PORT.put(0, Server_port);
     SERVER_PORT.commit();
     Serial.println("Input reset to apply the result.(restart)");
-    delay(3000);    
+    vTaskDelay(3000);    
     
   }else if(header=="APName"){
     Serial.println("APName has been updated");
@@ -108,7 +108,7 @@ void parse_packet(String str){
     AP_NAME.writeString(0, AP_id);
     AP_NAME.commit();
     Serial.println("Input reset to apply the result.(restart)");
-    delay(3000);    
+    vTaskDelay(3000);    
     
   }else if(header=="APPassword"){
     Serial.println("APPassword has been updated");
@@ -118,7 +118,7 @@ void parse_packet(String str){
     AP_PASSWORD.writeString(0, AP_pw);
     AP_PASSWORD.commit();
     Serial.println("Input reset to apply the result.(restart)");
-    delay(3000);    
+    vTaskDelay(3000);    
     
   }
   return;

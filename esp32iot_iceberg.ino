@@ -38,9 +38,11 @@ MAX30105 particleSensor;
 unsigned long sensor_sampling_interval[NUM_SENSOR_CH]={100,100}; // ms
 unsigned long sensor_sampling_BufSize[NUM_SENSOR_CH]={10,10}; // ms
 bool flag_packet_ready = false;
+bool flag_param_changed = false;
 unsigned long StartingTime=0;
 uint64_t current_time;
 String txPacket;
+String txPacket_param;
 String rxPacket;
 
 
@@ -236,13 +238,18 @@ void setup() {
 
   delay(1000);
   Serial.println("connecting to AP");
+  bool isAPconnected=false;
   for(int i=0;i<3;i++){
-    if(ConnectToRouter(AP_id.c_str(), AP_pw.c_str())){
+    isAPconnected=ConnectToRouter(AP_id.c_str(), AP_pw.c_str());
+    if(isAPconnected){
       break;
     }
   }
-  Serial.println("AP connected");
-
+  if(isAPconnected){
+    Serial.println("AP connected");
+  }else{
+    Serial.println("AP not connected. Proceed anyway..");
+  }
 
   bool isSSL=true;
   // server address, port and URL
@@ -284,65 +291,7 @@ unsigned long messageTimestamp = 0;
 String readString;
 
 void loop() {
-
-//   while(Serial.available()) {
-//     delay(1);  //delay to allow buffer to fill 
-//     if (Serial.available() >0) {
-//       char c = Serial.read();  //gets one byte from serial buffer
-//       readString += c; //makes the string readString
-//     }
-//   }
-  
-//   if (readString.length() >0) {
-//     Serial.println(readString); //see what was received
-//     parse_packet(readString);
-//     readString="";
-//   }
-  
-//   socketIO.loop();
-//   uint64_t now = millis();
-
-//   if(now - messageTimestamp > 2000) {
-//       messageTimestamp = now;
-//       if(true){
-//         enroll_serviceProfile();
-//       }
-
-//       // creat JSON message for Socket.IO (event)
-//       DynamicJsonDocument doc(1024);
-//       JsonArray array = doc.to<JsonArray>();
-
-//       // add evnet name
-//       // Hint: socket.on('event_name', ....
-// //        array.add("event_name");
-//       array.add("msg-v0");//header:message-version-0 (test header)
-
-//       // add payload (parameters) for the event
-//       JsonObject param1 = array.createNestedObject();
-//       param1["now"] = (uint32_t) now;
-
-//       // JSON to String (serializion)
-//       String output;
-//       serializeJson(doc, output);
-//       // Print JSON for debugging
-//       Serial.print("transmitting:");
-//       Serial.println(output);
-//       // Send event
-//       socketIO.sendEVENT(output);
-
-//       String str_temp;
-//       str_temp = GetJsonString_example();
-//       socketIO.sendEVENT(str_temp);
-//       Serial.print("transmitting2:");
-//       Serial.println(str_temp);
-
-// //      str_temp = GetJsonString_DevInfo();
-// //      socketIO.sendEVENT(str_temp);
-// //      Serial.print("transmitting3:");
-// //      Serial.println(str_temp);
-
-//       // main_task();
-//   }
+//do nothing here.
 }
 
 
@@ -359,6 +308,9 @@ void TaskSocketIO(void *pvParameters){  // This is a task.
   //   digitalWrite(PIN_LED1, LOW);   // turn the LED on (HIGH is the voltage level)
   //   vTaskDelay(1000);  // ms
   // }
+
+  enroll_serviceProfile();
+
   while(true){
     vTaskDelay(100);  // ms
     while(Serial.available()) {
@@ -370,23 +322,29 @@ void TaskSocketIO(void *pvParameters){  // This is a task.
     }
     if (readString.length() >0) {
       Serial.println(readString); //see what was received
-    //   parse_packet(readString);
+      parse_packet(readString);
       readString="";
     }    
     socketIO.loop();
 
     uint64_t now = millis();
+
+    if(flag_param_changed){
+      Serial.println("param change transmitted");
+      socketIO.sendEVENT(txPacket_param);
+      flag_param_changed=false;
+    }
+
     if(flag_packet_ready){
-    //   // Serial.println("thread_sio:"+str_packet);
+      if(true){
+        enroll_serviceProfile();
+      }
       digitalWrite(PIN_LED1, HIGH);   // turn the LED on (HIGH is the voltage level)
       Serial.println("socket tx triggered");
       socketIO.sendEVENT(txPacket);
       digitalWrite(PIN_LED1, LOW);   // turn the LED on (HIGH is the voltage level)
       flag_packet_ready=false;
 
-      if(true){
-        enroll_serviceProfile();
-      }
 
         // creat JSON message for Socket.IO (event)
         DynamicJsonDocument doc(1024);
@@ -404,7 +362,6 @@ void TaskSocketIO(void *pvParameters){  // This is a task.
         // JSON to String (serializion)
         String output;
         serializeJson(doc, output);
-        // Print JSON for debugging
         Serial.print("transmitting:");
         Serial.println(output);
         // Send event
@@ -453,22 +410,26 @@ void main_task(void){
     JsonArray array = doc.to<JsonArray>();
     array.add("msg-v0");
     JsonObject root = array.createNestedObject();
-    JsonArray sensor_data[2];
-    JsonObject sensor_info[2];
-    sensor_info[0]= root.createNestedObject("info_sen0");
-    sensor_info[1]= root.createNestedObject("info_sen1");
-    sensor_info[0]["name"]="PPR_red";
-    sensor_info[0]["dtype"]="uint16_t";
-    sensor_info[0]["period"]="20ms";
-    sensor_info[0]["unit"]="raw";
+    root["_H"]="DUP";
 
-    sensor_info[1]["name"]="PPR_ir";
-    sensor_info[1]["dtype"]="uint16_t";
-    sensor_info[1]["period"]="20ms";
-    sensor_info[1]["unit"]="raw";
-    sensor_data[0] = root.createNestedArray("ch0");
-    sensor_data[1] = root.createNestedArray("ch1");
+    reportParamChange();
+    flag_param_changed=true;
+
+    JsonObject sensor_ch[2];
+    sensor_ch[0] = root.createNestedObject("ch0");
+    sensor_ch[1] = root.createNestedObject("ch1");
+
+    sensor_ch[0]["t0"]=millis();
+    sensor_ch[1]["t1"]=millis();
+
+    JsonArray sensor_data[2];
+    sensor_data[0] = sensor_ch[0].createNestedArray("data");
+    sensor_data[1] = sensor_ch[1].createNestedArray("data");
+
+    // sensor_data[0] = root.createNestedArray("ch0");
+    // sensor_data[1] = root.createNestedArray("ch1");
     while(true){
+
       digitalWrite(PIN_LED0, LOW);   // turn the LED on (HIGH is the voltage level)
       vTaskDelay(2);  // ms
       digitalWrite(PIN_LED0, HIGH);   // turn the LED on (HIGH is the voltage level)
@@ -491,10 +452,8 @@ void main_task(void){
         }
         iter[sensorChannel]++;
         if(iter[0]%sensor_sampling_BufSize[0]==0){
-          Serial.println("in the if region");
           txPacket="";
           serializeJson(doc, txPacket);
-
           Serial.print("DATA:");
           Serial.println(txPacket);
           flag_packet_ready = true;
@@ -507,16 +466,46 @@ void main_task(void){
   return; 
 }
 
+void reportParamChange(void){
+    DynamicJsonDocument doc(1024);
+    JsonArray array = doc.to<JsonArray>();
+    array.add("msg-v0");
+    JsonObject root = array.createNestedObject();
+    root["_H"]="PARAM";
+
+    JsonObject sensor_info[2];
+    sensor_info[0]= root.createNestedObject("info_sen0");
+    sensor_info[1]= root.createNestedObject("info_sen1");
+    sensor_info[0]["name"]="PPR_red";
+    sensor_info[0]["dtype"]="uint16_t";
+    sensor_info[0]["period"]="20ms";
+    sensor_info[0]["unit"]="raw";
+
+    sensor_info[1]["name"]="PPR_ir";
+    sensor_info[1]["dtype"]="uint16_t";
+    sensor_info[1]["period"]="20ms";
+    sensor_info[1]["unit"]="raw";
+
+    txPacket_param="";
+    serializeJson(doc, txPacket_param);
+}
+
+
 void enroll_serviceProfile(void){
   DynamicJsonDocument doc(1024);
   JsonArray array = doc.to<JsonArray>();
   array.add("Start_Service");
   JsonObject root = array.createNestedObject();
-  root["room"]="my-little-tiny-room";
+  root["sid"]="test-0000-0000-0000";
   root["type"]="tsSensor";
-  root["description"]="tsSensor";
+  root["nickname"]="sensor-0000";
+  root["description"]="ppg sensor";
+  root["owner"]="Hong Gil-dong";
+  root["state"]="undefined";
+  root["room"]="my-little-tiny-room";
   JsonObject dev_info = root.createNestedObject("contents");
-  dev_info["sensor"] = "dummy sensor";
+  dev_info["sensor0"] = "ppg-red";
+  dev_info["sensor1"] = "ppg-ir";
 
   // JSON to String (serializion)
   String str;
