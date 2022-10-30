@@ -474,8 +474,8 @@ void reportParamChange(void){
     root["_H"]="PARAM";
 
     JsonObject sensor_info[2];
-    sensor_info[0]= root.createNestedObject("info_sen0");
-    sensor_info[1]= root.createNestedObject("info_sen1");
+    sensor_info[0]= root.createNestedObject("ch0");
+    sensor_info[1]= root.createNestedObject("ch1");
     sensor_info[0]["name"]="PPR_red";
     sensor_info[0]["dtype"]="uint16_t";
     sensor_info[0]["period"]="20ms";
@@ -497,16 +497,20 @@ void enroll_serviceProfile(void){
   array.add("Start_Service");
   JsonObject root = array.createNestedObject();
   root["sid"]="test-0000-0000-0000";
-  root["type"]="tsSensor";
-  root["nickname"]="sensor-0000";
+  root["type"]="tsSensor"; //Time Series
+  root["nickname"]="sensor_0000";
   root["description"]="ppg sensor";
   root["owner"]="Hong Gil-dong";
   root["state"]="undefined";
   root["room"]="my-little-tiny-room";
-  JsonObject dev_info = root.createNestedObject("contents");
-  dev_info["sensor0"] = "ppg-red";
-  dev_info["sensor1"] = "ppg-ir";
-
+  JsonObject contents = root.createNestedObject("contents");
+  JsonObject channel[2];  
+  channel[0]=contents.createNestedObject("0");
+  channel[1]=contents.createNestedObject("1");
+  channel[0]["name"] = "ppg-red";
+  channel[0]["type"] = "TS";
+  channel[1]["name"] = "ppg-ir";
+  channel[1]["type"] = "TS";
   // JSON to String (serializion)
   String str;
   serializeJson(doc, str);
