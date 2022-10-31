@@ -56,7 +56,8 @@ String txPacket;
 String txPacket_param;
 String rxPacket;
 
-
+uint32_t ppg[2][20];
+unsigned long timeStamp=0;
 
 
 
@@ -351,10 +352,41 @@ void TaskSocketIO(void *pvParameters){  // This is a task.
     }
 
     if(flag_packet_ready){
-      // Serial.println("socket tx triggered");
       if(true){
         enroll_serviceProfile();
       }
+
+      DynamicJsonDocument doc(1024);
+      JsonArray array = doc.to<JsonArray>();
+      array.add("msg-v0");
+      JsonObject root = array.createNestedObject();
+      root["_H"]="DUP";
+
+      // reportParamChange();
+      // flag_param_changed=true;
+
+      JsonObject sensor_ch[2];
+      sensor_ch[0] = root.createNestedObject("ch0");
+      sensor_ch[1] = root.createNestedObject("ch1");
+
+      sensor_ch[0]["t0"]=timeStamp;
+      sensor_ch[1]["t1"]=timeStamp;
+
+      JsonArray sensor_data[2];
+      sensor_data[0] = sensor_ch[0].createNestedArray("data");
+      sensor_data[1] = sensor_ch[1].createNestedArray("data");
+
+      for(int i=0;i<2;i++){
+        for(int j=0;j<sensor_sampling_BufSize[i];j++){
+          sensor_data[i].add(ppg[i][j]);
+        }
+      }
+      txPacket="";
+      serializeJson(doc, txPacket);
+      Serial.print("DATA:");
+      Serial.println(txPacket);
+
+      // Serial.println("socket tx triggered");
       digitalWrite(PIN_LED1, HIGH);   // turn the LED on (HIGH is the voltage level)
       socketIO.sendEVENT(txPacket);
       digitalWrite(PIN_LED1, LOW);   // turn the LED on (HIGH is the voltage level)
@@ -398,94 +430,55 @@ void TaskSensor(void *pvParameters) { // This is a task.
 void main_task(void){
 
   static unsigned long SensorTimeLog0;
-  unsigned long iter[NUM_SENSOR_CH]={0,0};
+  uint32_t iter[NUM_SENSOR_CH]={0,0};
   uint8_t sensorChannel=0;
-
   SensorTimeLog0 = millis();
   iter[0]=0;
   iter[1]=0;
+  unsigned long t0 = millis();
+  unsigned long t1, dt;
 
   while(true){
-    DynamicJsonDocument doc(1024);
-    JsonArray array = doc.to<JsonArray>();
-    array.add("msg-v0");
-    JsonObject root = array.createNestedObject();
-    root["_H"]="DUP";
-
-    reportParamChange();
-    flag_param_changed=true;
-
-    JsonObject sensor_ch[2];
-    sensor_ch[0] = root.createNestedObject("ch0");
-    sensor_ch[1] = root.createNestedObject("ch1");
-
-    sensor_ch[0]["t0"]=millis();
-    sensor_ch[1]["t1"]=millis();
-
-    JsonArray sensor_data[2];
-    sensor_data[0] = sensor_ch[0].createNestedArray("data");
-    sensor_data[1] = sensor_ch[1].createNestedArray("data");
-
-    // sensor_data[0] = root.createNestedArray("ch0");
-    // sensor_data[1] = root.createNestedArray("ch1");
+    t0 = millis();
     while(true){
       digitalWrite(PIN_LED0, LOW);   // turn the LED on (HIGH is the voltage level)
       vTaskDelay(2);  // ms
       digitalWrite(PIN_LED0, HIGH);   // turn the LED on (HIGH is the voltage level)
       sensorChannel=0;
       if(millis()-SensorTimeLog0>(sensor_sampling_interval[sensorChannel]*iter[sensorChannel])){ // unit: ms
-        int32_t ppg[3];
-        ppg[0]=particleSensor.getRed();
-        ppg[1]=particleSensor.getIR();
-        ppg[2]=particleSensor.getGreen(); 
-        // Serial.print(" R:");
-        // Serial.print(ppg[0]);
-        // Serial.print(", IR:");
-        // Serial.print(ppg[1]);
-        // Serial.print(", G:");
-        // Serial.print(ppg[2]);
-        // Serial.println("");
+        ppg[0][iter[0]%sensor_sampling_BufSize[0]]=particleSensor.getRed();
+        ppg[1][iter[1]%sensor_sampling_BufSize[1]]=particleSensor.getIR();
+        timeStamp=millis();
 
-        long irValue = ppg[1];
+        // long irValue = ppg[1];
+        // if (checkForBeat(irValue) == true){
+        //   //We sensed a beat!
+        //   long delta = millis() - lastBeat;
+        //   lastBeat = millis();
+        //   beatsPerMinute = 60 / (delta / 1000.0);
+        //   if (beatsPerMinute < 255 && beatsPerMinute > 20)
+        //   {
+        //     rates[rateSpot++] = (byte)beatsPerMinute; //Store this reading in the array
+        //     rateSpot %= RATE_SIZE; //Wrap variable
+        //   }
+        // }
+        // Serial.print(", BPM=");
+        // Serial.print(beatsPerMinute);
 
-        if (checkForBeat(irValue) == true){
-          //We sensed a beat!
-          long delta = millis() - lastBeat;
-          lastBeat = millis();
+        iter[0]++;
+        iter[1]++;
 
-          beatsPerMinute = 60 / (delta / 1000.0);
-
-          if (beatsPerMinute < 255 && beatsPerMinute > 20)
-          {
-            rates[rateSpot++] = (byte)beatsPerMinute; //Store this reading in the array
-            rateSpot %= RATE_SIZE; //Wrap variable
-
-            //Take average of readings
-            beatAvg = 0;
-            for (byte x = 0 ; x < RATE_SIZE ; x++)
-              beatAvg += rates[x];
-            beatAvg /= RATE_SIZE;
-          }
-        }
-        Serial.print(", BPM=");
-        Serial.print(beatsPerMinute);
-        Serial.print(", Avg BPM=");
-        Serial.println(beatAvg);
-
-        for(int i=0;i<2;i++){
-          sensor_data[i].add(ppg[i]);
-        }
-        iter[sensorChannel]++;
         if(iter[0]%sensor_sampling_BufSize[0]==0){
-          txPacket="";
-          serializeJson(doc, txPacket);
-          Serial.print("DATA:");
-          Serial.println(txPacket);
+          Serial.println("");
           flag_packet_ready = true;
           break;
         }
-
       }
+      dt= t0-t1;
+      t1= t0;
+      t0= millis();
+      Serial.print("  dT==");
+      Serial.print(dt);
     }
   }
   return; 
