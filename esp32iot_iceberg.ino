@@ -41,13 +41,13 @@ int beatAvg;
 
 
 #define N_of_sample 5
-#define NUM_SENSOR_CH 2
+#define NUM_SENSOR_CH 4
 // LED
 #define PIN_LED0 16
 #define PIN_LED1 17
 
-unsigned long sensor_sampling_interval[NUM_SENSOR_CH]={30,30}; // ms
-unsigned long sensor_sampling_BufSize[NUM_SENSOR_CH]={10,10}; // ms
+unsigned long sensor_sampling_interval[NUM_SENSOR_CH]={40,40,0,0}; // ms
+unsigned long sensor_sampling_BufSize[NUM_SENSOR_CH]={10,10,1,1}; // ms
 bool flag_packet_ready = false;
 bool flag_param_changed = false;
 unsigned long StartingTime=0;
@@ -57,6 +57,8 @@ String txPacket_param;
 String rxPacket;
 
 uint32_t ppg[2][20];
+float heartRate[10];
+float temperatureC[10];
 unsigned long timeStamp=0;
 
 
@@ -345,8 +347,6 @@ void TaskSocketIO(void *pvParameters){  // This is a task.
 
     uint64_t now = millis();
 
-    reportParamChange();
-    flag_param_changed=true;
     if(flag_param_changed){
       // Serial.println("param change transmitted");
       socketIO.sendEVENT(txPacket_param);
@@ -354,6 +354,8 @@ void TaskSocketIO(void *pvParameters){  // This is a task.
     }
 
     if(flag_packet_ready){
+      reportParamChange();
+      flag_param_changed=true;
       if(true){
         enroll_serviceProfile();
       }
@@ -366,22 +368,40 @@ void TaskSocketIO(void *pvParameters){  // This is a task.
 
       // flag_param_changed=true;
 
-      JsonObject sensor_ch[2];
-      sensor_ch[0] = root.createNestedObject("ch0");
-      sensor_ch[1] = root.createNestedObject("ch1");
+      JsonObject sensor_ch[4];
+      sensor_ch[0] = root.createNestedObject("ch0"); //ppg-red
+      sensor_ch[1] = root.createNestedObject("ch1"); //ppg-ir
+      sensor_ch[2] = root.createNestedObject("ch2"); //temperature
+      sensor_ch[3] = root.createNestedObject("ch3"); //heart rate
 
       sensor_ch[0]["t0"]=timeStamp;
-      sensor_ch[1]["t1"]=timeStamp;
+      sensor_ch[1]["t0"]=timeStamp;
+      sensor_ch[2]["t0"]=timeStamp;
+      sensor_ch[3]["t0"]=timeStamp;
 
       JsonArray sensor_data[2];
       sensor_data[0] = sensor_ch[0].createNestedArray("data");
       sensor_data[1] = sensor_ch[1].createNestedArray("data");
+      sensor_data[2] = sensor_ch[2].createNestedArray("data");
+      sensor_data[3] = sensor_ch[3].createNestedArray("data");
 
-      for(int i=0;i<2;i++){
+      int i;
+      for(i=0;i<2;i++){
         for(int j=0;j<sensor_sampling_BufSize[i];j++){
           sensor_data[i].add(ppg[i][j]);
         }
       }
+
+      i=2;
+      for(int j=0;j<sensor_sampling_BufSize[i];j++){
+        sensor_data[i].add(temperatureC[j]);
+      }
+      i=3;
+      for(int j=0;j<sensor_sampling_BufSize[i];j++){
+        sensor_data[i].add(heartRate[j]);
+      }
+
+
       txPacket="";
       serializeJson(doc, txPacket);
       Serial.print("DATA:");
@@ -414,9 +434,9 @@ void TaskSocketIO(void *pvParameters){  // This is a task.
 void TaskSensor(void *pvParameters) { // This is a task.
   (void) pvParameters;
 
-  static unsigned long SensorTimeLog0;
-
   Wire.begin();
+  particleSensor.enableDIETEMPRDY(); //Enable the temp ready interrupt. This is required.
+
   digitalWrite(PIN_LED0, HIGH);   // turn the LED on (HIGH is the voltage level)
   digitalWrite(PIN_LED1, HIGH);   // turn the LED on (HIGH is the voltage level)
 
@@ -452,20 +472,19 @@ void main_task(void){
         long delta = millis() - lastBeat;
         lastBeat = millis();
         beatsPerMinute = 60 / (delta / 1000.0);
-        if (beatsPerMinute < 255 && beatsPerMinute > 20)
-        {
-          rates[rateSpot++] = (byte)beatsPerMinute; //Store this reading in the array
-          rateSpot %= RATE_SIZE; //Wrap variable
-        }
       }
-      Serial.print(", BPM=");
-      Serial.println(beatsPerMinute);
+      temperatureC[0] = particleSensor.readTemperature();
+      heartRate[0]=beatsPerMinute;
+      // Serial.print(", Temp=");
+      // Serial.print(temperatureC[0]);
+      // Serial.print(", BPM=");
+      // Serial.println(heartRate[0]);
 
-      dt= t0-t1;
-      t1= t0;
-      t0= millis();
-      Serial.print("  dT==");
-      Serial.print(dt);
+      // dt= t0-t1;
+      // t1= t0;
+      // t0= millis();
+      // Serial.print("  dT==");
+      // Serial.print(dt);
 
       iter[0]++;
       iter[1]++;
@@ -485,18 +504,30 @@ void reportParamChange(void){
     JsonObject root = array.createNestedObject();
     root["_H"]="PARAM";
 
-    JsonObject sensor_info[2];
+    JsonObject sensor_info[NUM_SENSOR_CH];
     sensor_info[0]= root.createNestedObject("ch0");
     sensor_info[1]= root.createNestedObject("ch1");
+    sensor_info[2]= root.createNestedObject("ch2");
+    sensor_info[3]= root.createNestedObject("ch3");
     sensor_info[0]["name"]="PPR_red";
-    sensor_info[0]["dtype"]="uint16_t";
+    sensor_info[0]["dtype"]="uint32_t";
     sensor_info[0]["period"]="20ms";
     sensor_info[0]["unit"]="raw";
 
     sensor_info[1]["name"]="PPR_ir";
-    sensor_info[1]["dtype"]="uint16_t";
+    sensor_info[1]["dtype"]="uint32_t";
     sensor_info[1]["period"]="20ms";
     sensor_info[1]["unit"]="raw";
+
+    sensor_info[2]["name"]="Temperature";
+    sensor_info[2]["dtype"]="uint16_t";
+    sensor_info[2]["period"]="0";
+    sensor_info[2]["unit"]="C";
+
+    sensor_info[3]["name"]="HeartRate";
+    sensor_info[3]["dtype"]="float";
+    sensor_info[3]["period"]="0";
+    sensor_info[3]["unit"]="BPM";
 
     txPacket_param="";
     serializeJson(doc, txPacket_param);
@@ -516,13 +547,19 @@ void enroll_serviceProfile(void){
   root["state"]="undefined";
   root["room"]="my-little-tiny-room";
   JsonObject contents = root.createNestedObject("contents");
-  JsonObject channel[2];  
+  JsonObject channel[NUM_SENSOR_CH];  
   channel[0]=contents.createNestedObject("0");
   channel[1]=contents.createNestedObject("1");
+  channel[2]=contents.createNestedObject("2");
+  channel[3]=contents.createNestedObject("3");
   channel[0]["name"] = "ppg-red";
   channel[0]["type"] = "TS";
   channel[1]["name"] = "ppg-ir";
   channel[1]["type"] = "TS";
+  channel[2]["name"] = "temperature";
+  channel[2]["type"] = "TS";
+  channel[3]["name"] = "heart-rate";
+  channel[3]["type"] = "TS";
   // JSON to String (serializion)
   String str;
   serializeJson(doc, str);
