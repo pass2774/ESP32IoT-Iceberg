@@ -345,6 +345,7 @@ void TaskSocketIO(void *pvParameters){  // This is a task.
 
     uint64_t now = millis();
 
+    reportParamChange();
     flag_param_changed=true;
     if(flag_param_changed){
       // Serial.println("param change transmitted");
@@ -363,7 +364,6 @@ void TaskSocketIO(void *pvParameters){  // This is a task.
       JsonObject root = array.createNestedObject();
       root["_H"]="DUP";
 
-      // reportParamChange();
       // flag_param_changed=true;
 
       JsonObject sensor_ch[2];
@@ -434,10 +434,8 @@ void main_task(void){
   uint32_t iter[NUM_SENSOR_CH]={0,0};
   uint8_t sensorChannel=0;
   SensorTimeLog0 = millis();
-  iter[0]=0;
-  iter[1]=0;
-  unsigned long t0 = millis();
-  unsigned long t1, dt;
+  // t0, t1, dt is adopted to survey the quality of sensor sampling rate
+  unsigned long t0,t1,dt;
 
   while(true){
     digitalWrite(PIN_LED0, LOW);   // turn the LED on (HIGH is the voltage level)
@@ -448,34 +446,33 @@ void main_task(void){
       ppg[0][iter[0]%sensor_sampling_BufSize[0]]=particleSensor.getRed();
       ppg[1][iter[1]%sensor_sampling_BufSize[1]]=particleSensor.getIR();
       timeStamp=millis();
-      // long irValue = ppg[1];
-      // if (checkForBeat(irValue) == true){
-      //   //We sensed a beat!
-      //   long delta = millis() - lastBeat;
-      //   lastBeat = millis();
-      //   beatsPerMinute = 60 / (delta / 1000.0);
-      //   if (beatsPerMinute < 255 && beatsPerMinute > 20)
-      //   {
-      //     rates[rateSpot++] = (byte)beatsPerMinute; //Store this reading in the array
-      //     rateSpot %= RATE_SIZE; //Wrap variable
-      //   }
-      // }
-      // Serial.print(", BPM=");
-      // Serial.print(beatsPerMinute);
-
-      iter[0]++;
-      iter[1]++;
-
-      if(iter[0]%sensor_sampling_BufSize[0]==0){
-        Serial.println("");
-        flag_packet_ready = true;
-        // break;
+      long irValue = ppg[1][iter[1]%sensor_sampling_BufSize[1]];
+      if (checkForBeat(irValue) == true){
+        //We sensed a beat!
+        long delta = millis() - lastBeat;
+        lastBeat = millis();
+        beatsPerMinute = 60 / (delta / 1000.0);
+        if (beatsPerMinute < 255 && beatsPerMinute > 20)
+        {
+          rates[rateSpot++] = (byte)beatsPerMinute; //Store this reading in the array
+          rateSpot %= RATE_SIZE; //Wrap variable
+        }
       }
+      Serial.print(", BPM=");
+      Serial.println(beatsPerMinute);
+
       dt= t0-t1;
       t1= t0;
       t0= millis();
       Serial.print("  dT==");
       Serial.print(dt);
+
+      iter[0]++;
+      iter[1]++;
+      if(iter[0]%sensor_sampling_BufSize[0]==0){
+        Serial.println("");
+        flag_packet_ready = true;
+      }
     }
   }
   return; 
