@@ -27,7 +27,18 @@ SocketIOclient socketIO;
 
 #include <Wire.h>
 #include "MAX30105.h" //MAX30102 and MAX30105 share the same code
+#include "heartRate.h"
+
 MAX30105 particleSensor;
+const byte RATE_SIZE = 4; //Increase this for more averaging. 4 is good.
+byte rates[RATE_SIZE]; //Array of heart rates
+byte rateSpot = 0;
+long lastBeat = 0; //Time at which the last beat occurred
+
+float beatsPerMinute;
+int beatAvg;
+
+
 
 #define N_of_sample 5
 #define NUM_SENSOR_CH 2
@@ -35,7 +46,7 @@ MAX30105 particleSensor;
 #define PIN_LED0 16
 #define PIN_LED1 17
 
-unsigned long sensor_sampling_interval[NUM_SENSOR_CH]={50,50}; // ms
+unsigned long sensor_sampling_interval[NUM_SENSOR_CH]={30,30}; // ms
 unsigned long sensor_sampling_BufSize[NUM_SENSOR_CH]={10,10}; // ms
 bool flag_packet_ready = false;
 bool flag_param_changed = false;
@@ -44,6 +55,10 @@ uint64_t current_time;
 String txPacket;
 String txPacket_param;
 String rxPacket;
+
+
+
+
 
 
 
@@ -330,49 +345,35 @@ void TaskSocketIO(void *pvParameters){  // This is a task.
     uint64_t now = millis();
 
     if(flag_param_changed){
-      Serial.println("param change transmitted");
+      // Serial.println("param change transmitted");
       socketIO.sendEVENT(txPacket_param);
       flag_param_changed=false;
     }
 
     if(flag_packet_ready){
+      // Serial.println("socket tx triggered");
       if(true){
         enroll_serviceProfile();
       }
       digitalWrite(PIN_LED1, HIGH);   // turn the LED on (HIGH is the voltage level)
-      Serial.println("socket tx triggered");
       socketIO.sendEVENT(txPacket);
       digitalWrite(PIN_LED1, LOW);   // turn the LED on (HIGH is the voltage level)
       flag_packet_ready=false;
 
-
-        // creat JSON message for Socket.IO (event)
-        DynamicJsonDocument doc(1024);
-        JsonArray array = doc.to<JsonArray>();
-
-        // add evnet name
-        // Hint: socket.on('event_name', ....
-        // array.add("event_name");
-        array.add("msg-v0");//header:message-version-0 (test header)
-
-        // add payload (parameters) for the event
-        JsonObject param1 = array.createNestedObject();
-        param1["now"] = (uint32_t) now;
-
-        // JSON to String (serializion)
-        String output;
-        serializeJson(doc, output);
-        Serial.print("transmitting:");
-        Serial.println(output);
-        // Send event
-        socketIO.sendEVENT(output);
-
-
-        // String str_temp;
-        // str_temp = GetJsonString_example();
-        // socketIO.sendEVENT(str_temp);
-        // Serial.print("transmitting2:");
-        // Serial.println(str_temp);
+      // // creat JSON message for Socket.IO (event)
+      // DynamicJsonDocument doc(1024);
+      // JsonArray array = doc.to<JsonArray>();
+      // // Add evnet name. Hint: socket.on('event_name', ....  --> array.add("event_name");
+      // array.add("msg-v0");//header:message-version-0 (test header)
+      // JsonObject param1 = array.createNestedObject();
+      // param1["now"] = (uint32_t) now;
+      // // JSON to String (serializion)
+      // String output;
+      // serializeJson(doc, output);
+      // Serial.print("transmitting:");
+      // Serial.println(output);
+      // // Send event
+      // socketIO.sendEVENT(output);
     }
   }
 }
@@ -444,6 +445,32 @@ void main_task(void){
         // Serial.print(", G:");
         // Serial.print(ppg[2]);
         // Serial.println("");
+
+        long irValue = ppg[1];
+
+        if (checkForBeat(irValue) == true){
+          //We sensed a beat!
+          long delta = millis() - lastBeat;
+          lastBeat = millis();
+
+          beatsPerMinute = 60 / (delta / 1000.0);
+
+          if (beatsPerMinute < 255 && beatsPerMinute > 20)
+          {
+            rates[rateSpot++] = (byte)beatsPerMinute; //Store this reading in the array
+            rateSpot %= RATE_SIZE; //Wrap variable
+
+            //Take average of readings
+            beatAvg = 0;
+            for (byte x = 0 ; x < RATE_SIZE ; x++)
+              beatAvg += rates[x];
+            beatAvg /= RATE_SIZE;
+          }
+        }
+        Serial.print(", BPM=");
+        Serial.print(beatsPerMinute);
+        Serial.print(", Avg BPM=");
+        Serial.println(beatAvg);
 
         for(int i=0;i<2;i++){
           sensor_data[i].add(ppg[i]);
