@@ -35,7 +35,7 @@ MAX30105 particleSensor;
 #define PIN_LED0 16
 #define PIN_LED1 17
 
-unsigned long sensor_sampling_interval[NUM_SENSOR_CH]={100,100}; // ms
+unsigned long sensor_sampling_interval[NUM_SENSOR_CH]={50,50}; // ms
 unsigned long sensor_sampling_BufSize[NUM_SENSOR_CH]={10,10}; // ms
 bool flag_packet_ready = false;
 bool flag_param_changed = false;
@@ -312,7 +312,7 @@ void TaskSocketIO(void *pvParameters){  // This is a task.
   enroll_serviceProfile();
 
   while(true){
-    vTaskDelay(100);  // ms
+    vTaskDelay(10);  // ms
     while(Serial.available()) {
       vTaskDelay(1);  //delay to allow buffer to fill 
       if (Serial.available() >0) {
@@ -403,7 +403,6 @@ void main_task(void){
   SensorTimeLog0 = millis();
   iter[0]=0;
   iter[1]=0;
-  vTaskDelay(500);  // ms
 
   while(true){
     DynamicJsonDocument doc(1024);
@@ -429,7 +428,6 @@ void main_task(void){
     // sensor_data[0] = root.createNestedArray("ch0");
     // sensor_data[1] = root.createNestedArray("ch1");
     while(true){
-
       digitalWrite(PIN_LED0, LOW);   // turn the LED on (HIGH is the voltage level)
       vTaskDelay(2);  // ms
       digitalWrite(PIN_LED0, HIGH);   // turn the LED on (HIGH is the voltage level)
