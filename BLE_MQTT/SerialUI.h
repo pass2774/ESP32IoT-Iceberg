@@ -1,7 +1,7 @@
 #include "eepromCustom.h"
 //#define USE_SERIAL Serial
 
-
+//jinsol
 void print_settings(){
   Serial.println("--------Current settings--------");
   Serial.print("Device name: ");   Serial.println(Dev_name);
