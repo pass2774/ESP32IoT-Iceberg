@@ -7,7 +7,7 @@
    The service advertises itself as: 6E400001-B5A3-F393-E0A9-E50E24DCCA9E
    Has a characteristic of: 6E400002-B5A3-F393-E0A9-E50E24DCCA9E - used for receiving data with "WRITE" 
    Has a characteristic of: 6E400003-B5A3-F393-E0A9-E50E24DCCA9E - used to send data with  "NOTIFY"
-
+// TEST
    The design of creating the BLE server is:
    1. Create a BLE Server
    2. Create a BLE Service
