@@ -6,6 +6,8 @@
 WiFiClient net;
 
 
+const char ssid[] = "ANTS Place";
+const char pass[] = "ants@1681";
 //char path[] = "/";
 //char host[] = "192.168.101.178";    // 웹소켓 서버 주소
 

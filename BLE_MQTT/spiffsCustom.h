@@ -158,6 +158,36 @@ void testFileIO(fs::FS &fs, const char * path){
     }
 }
 
+void writeFileBytes(fs::FS &fs, const char * path, const uint8_t * buf,uint8_t len){
+    Serial.printf("Writing file: %s\r\n", path);
+    File file = fs.open(path, FILE_WRITE);
+    if(!file){
+        Serial.println("- failed to open file for writing");
+        return;
+    }
+    if(file.write(buf,len)){
+        Serial.println("- file written");
+    } else {
+        Serial.println("- write failed");
+    }
+    file.close();
+}
+void appendFileBytes(fs::FS &fs, const char * path, const uint8_t * buf,uint8_t len){
+    // Serial.printf("Appending file: %s\r\n", path);
+    File file = fs.open(path, FILE_APPEND);
+    if(!file){
+        Serial.println("- failed to open file for appending");
+        return;
+    }
+    if(file.write(buf,len)){
+        // Serial.println("- file appended");
+    } else {
+        Serial.println("- append failed");
+    }
+    file.close();
+}
+
+
 // void setup(){
 //     Serial.begin(115200);
 //     if(!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)){

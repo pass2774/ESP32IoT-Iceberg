@@ -58,6 +58,8 @@ struct DevParams{
 };
 DevParams devParams;
 
+char buf_eeprom[64];
+
 bool init_eeprom(){
     if (!INIT_FLAG.begin(0x40)) {
     Serial.println("Failed to initialize EEPROM:INIT_FLAG");
@@ -112,6 +114,58 @@ bool init_eeprom(){
   return true;
 }
 
+void eepromSetup_custom(){
+  INIT_FLAG.get(0,buf_eeprom);
+  String init_flag=String(buf_eeprom);
+  Serial.println("--flag--");
+  Serial.println(init_flag);
+  Serial.println("--------");
+
+  if(init_flag!="EEPROM_INITIATED"){
+  // Write: Variables ---> EEPROM stores
+    DEV_NAME.writeString(0, Dev_name);
+    DEV_NAME.commit();
+    SERVER_IP.writeString(0, Server_ip);
+    SERVER_IP.commit();
+    SERVER_PORT.put(0, Server_port);
+    SERVER_PORT.commit();
+    AP_NAME.writeString(0, AP_id);
+    AP_NAME.commit();
+    AP_PASSWORD.writeString(0, AP_pw);
+    AP_PASSWORD.commit();
+
+    INIT_FLAG.writeString(0, "EEPROM_INITIATED");
+    INIT_FLAG.commit();
+    Serial.print("device name: ");   Serial.println(Dev_name);
+    Serial.print("target server ip: ");   Serial.println(Server_ip);
+    Serial.print("target server port: ");   Serial.println(Server_port);
+    Serial.print("AP name: ");   Serial.println(AP_id);
+    Serial.print("AP password: ");   Serial.println(AP_pw);
+    Serial.println("EEPROM now initiated.");
+    Serial.println("");
+  }else{
+    Serial.println("EEPROM already initiated!");
+    Serial.println("");
+  }
+  // Clear variables
+//  buf_eeprom[0]='\0';
+
+  Serial.println("");
+  DEV_NAME.get(0, buf_eeprom);
+  Dev_name=String(buf_eeprom);
+  SERVER_IP.get(0, buf_eeprom);
+  Server_ip=String(buf_eeprom);
+  SERVER_PORT.get(0, Server_port);
+//  Server_port=String(buf_eeprom);
+  AP_NAME.get(0,buf_eeprom);
+  AP_id=String(buf_eeprom);
+  AP_PASSWORD.get(0,buf_eeprom);
+  AP_pw=String(buf_eeprom);
+
+  // setDevInfo();
+  // setDevParams();
+  // setSensorParams();
+}
 
 
 void setDevInfo(){

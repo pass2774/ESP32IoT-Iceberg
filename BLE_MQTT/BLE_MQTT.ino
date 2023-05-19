@@ -19,27 +19,20 @@
    In this example rxValue is the data received (only accessible inside that function).
    And txValue is the data to be sent, in this example just a byte incremented every second. 
 */
-//test1
-//test2
 
-#include <BLEDevice.h>
-#include <BLEServer.h>
-#include <BLEUtils.h>
-#include <BLE2902.h>
+
 #include "eepromCustom.h"
 #include "wifi_custom.h"
 #include "SerialUI.h"
 #include "spiffsCustom.h"
+#include "ble_custom.h"
 
 #define uS_TO_S_FACTOR 1000000ULL  /* Conversion factor for micro seconds to seconds */
 #define TIME_TO_SLEEP  5        /* Time ESP32 will go to sleep (in seconds) */
 
 RTC_DATA_ATTR int bootCount = 0;
 
-BLEServer *pServer = NULL;
-BLECharacteristic * pTxCharacteristic;
-bool deviceConnected = false;
-bool oldDeviceConnected = false;
+
 uint8_t txValue = 0;
 
 /*
@@ -82,14 +75,9 @@ void print_wakeup_reason(){
   Modified by Brent Rubell for Adafruit Industries
   MIT license, all text above must be included in any redistribution
  **********************************************************************/
-#include <WiFi.h>
 #include <MQTT.h>
 
-// const char ssid[] = "JoonhwaHotSpot";
-// const char pass[] = "iepstt2774";
 
-const char ssid[] = "ANTS Place";
-const char pass[] = "ants@1681";
 
 // WiFiClient net;
 MQTTClient MQTTclient;
@@ -176,147 +164,6 @@ void messageReceived(String &topic, String &payload) {
 }
 
 
-/*************************** Sketch Code ************************************/
-
-// See the following for generating UUIDs:
-// https://www.uuidgenerator.net/
-
-// #define SERVICE_UUID           "6E400001-B5A3-F393-E0A9-E50E24DCCA9E" // UART service UUID
-// #define CHARACTERISTIC_UUID_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
-// #define CHARACTERISTIC_UUID_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
-
-#define SERVICE_UUID           "167d0001-d1ea-11ed-afa1-0242ac120002" // UART service UUID
-#define CHARACTERISTIC_UUID_RX "167d0002-d1ea-11ed-afa1-0242ac120002"
-#define CHARACTERISTIC_UUID_TX "167d0003-d1ea-11ed-afa1-0242ac120002"
-#define CHARACTERISTIC_UUID_APID "167d0011-d1ea-11ed-afa1-0242ac120002"
-#define CHARACTERISTIC_UUID_APPW "167d0012-d1ea-11ed-afa1-0242ac120002"
-#define CHARACTERISTIC_UUID_MQTT "167d0013-d1ea-11ed-afa1-0242ac120002"
-#define HEADERSIZE 8
-
-char buf_eeprom[64];
-
-class MyServerCallbacks: public BLEServerCallbacks {
-    void onConnect(BLEServer* pServer) {
-      deviceConnected = true;
-    };
-
-    void onDisconnect(BLEServer* pServer) {
-      deviceConnected = false;
-    }
-};
-
-class MyCallbacks: public BLECharacteristicCallbacks {
-    void onWrite(BLECharacteristic *pCharacteristic) {
-      std::string rxValue = pCharacteristic->getValue();
-
-      if (rxValue.length() > 0) {
-        Serial.println("*********");
-        Serial.print("Received Value: ");
-        for (int i = 0; i < rxValue.length(); i++)
-          Serial.print(rxValue[i],HEX);
-
-        Serial.println();
-        Serial.println("*********");
-      }
-    }
-};
-
-class MyCallbacks_APID: public BLECharacteristicCallbacks {
-  void onWrite(BLECharacteristic *pCharacteristic) {
-    std::string rxValue = pCharacteristic->getValue();
-    if (rxValue.length() > 0) {
-      Serial.println("*********");
-      Serial.print("APID_Received: ");
-      // String str = String(rxValue.substr(HEADERSIZE).c_str());
-      String str = String(rxValue.c_str());
-      AP_NAME.writeString(0, str);
-      AP_NAME.commit();
-      AP_NAME.get(0,buf_eeprom);
-      Serial.println(String(buf_eeprom));
-
-      for (int i = 0; i < rxValue.length(); i++)
-        Serial.print(rxValue[i],HEX);
-      Serial.println();
-      Serial.println("*********");
-    }
-  }
-};
-
-class MyCallbacks_APPW: public BLECharacteristicCallbacks {
-  void onWrite(BLECharacteristic *pCharacteristic) {
-    std::string rxValue = pCharacteristic->getValue();
-    if (rxValue.length() > 0) {
-      Serial.println("*********");
-      Serial.print("APPW_Received: ");
-      String str = String(rxValue.substr(HEADERSIZE).c_str());
-      AP_PASSWORD.writeString(0, str);
-      AP_PASSWORD.commit();
-      AP_PASSWORD.get(0,buf_eeprom);
-      Serial.println(String(buf_eeprom));
-
-      for (int i = 0; i < rxValue.length(); i++)
-        Serial.print(rxValue[i],HEX);
-      Serial.println();
-      Serial.println("*********");
-    }
-  }
-};
-
-class MyCallbacks_MQTT: public BLECharacteristicCallbacks {
-  void onWrite(BLECharacteristic *pCharacteristic) {
-    std::string rxValue = pCharacteristic->getValue();
-    if (rxValue.length() > 0) {
-      Serial.println("*********");
-      Serial.print("[BLE]MQTT_length: ");
-      uint16_t len = rxValue[0];
-      len= (len<<8)|rxValue[1];
-      Serial.println(len);
-      Serial.print("[BLE]MQTT_Received: ");
-      String str = String(rxValue.substr(HEADERSIZE).c_str());
-      MQTT_TOKEN.writeString(0, str);
-      MQTT_TOKEN.commit();
-      MQTT_TOKEN.get(0,buf_eeprom);
-      Serial.println(String(buf_eeprom));
-
-
-      for (int i = 0; i < rxValue.length(); i++)
-        Serial.print(rxValue[i],HEX);
-      Serial.println();
-      Serial.println("*********");
-    }
-  }
-};
-
-void writeFileBytes(fs::FS &fs, const char * path, const uint8_t * buf,uint8_t len){
-    Serial.printf("Writing file: %s\r\n", path);
-    File file = fs.open(path, FILE_WRITE);
-    if(!file){
-        Serial.println("- failed to open file for writing");
-        return;
-    }
-    if(file.write(buf,len)){
-        Serial.println("- file written");
-    } else {
-        Serial.println("- write failed");
-    }
-    file.close();
-}
-void appendFileBytes(fs::FS &fs, const char * path, const uint8_t * buf,uint8_t len){
-    // Serial.printf("Appending file: %s\r\n", path);
-    File file = fs.open(path, FILE_APPEND);
-    if(!file){
-        Serial.println("- failed to open file for appending");
-        return;
-    }
-    if(file.write(buf,len)){
-        // Serial.println("- file appended");
-    } else {
-        Serial.println("- append failed");
-    }
-    file.close();
-}
-
-
 const char* path = "/acc.txt";
 
 // ref: (13:04) https://www.youtube.com/watch?v=JFDiqPHw3Vc&list=PL4s_3hkDEX_0YpVkHRY3MYHfGxxBNyKkj&index=100&t=590s
@@ -328,8 +175,6 @@ const char* path = "/acc.txt";
 //   20  |       77         |            13       |      28800       | 100kHz
 //   10  |       74         |            11       |      14400       | 100kHz
 void setup() {
-
-  // Serial.begin(115200);
   Serial.begin(230400);
 
   
@@ -347,115 +192,20 @@ void setup() {
   deleteFile(SPIFFS, "/acc.txt");
 
 
-  // Initialize EEPROM
+  // EEPROM setup
   init_eeprom();
-
-  INIT_FLAG.get(0,buf_eeprom);
-  String init_flag=String(buf_eeprom);
-  Serial.println("--flag--");
-  Serial.println(init_flag);
-  Serial.println("--------");
-
-  if(init_flag!="EEPROM_INITIATED"){
-  // Write: Variables ---> EEPROM stores
-    DEV_NAME.writeString(0, Dev_name);
-    DEV_NAME.commit();
-    SERVER_IP.writeString(0, Server_ip);
-    SERVER_IP.commit();
-    SERVER_PORT.put(0, Server_port);
-    SERVER_PORT.commit();
-    AP_NAME.writeString(0, AP_id);
-    AP_NAME.commit();
-    AP_PASSWORD.writeString(0, AP_pw);
-    AP_PASSWORD.commit();
-
-    INIT_FLAG.writeString(0, "EEPROM_INITIATED");
-    INIT_FLAG.commit();
-    Serial.print("device name: ");   Serial.println(Dev_name);
-    Serial.print("target server ip: ");   Serial.println(Server_ip);
-    Serial.print("target server port: ");   Serial.println(Server_port);
-    Serial.print("AP name: ");   Serial.println(AP_id);
-    Serial.print("AP password: ");   Serial.println(AP_pw);
-    Serial.println("EEPROM now initiated.");
-    Serial.println("");
-  }else{
-    Serial.println("EEPROM already initiated!");
-    Serial.println("");
-  }
-  // Clear variables
-//  buf_eeprom[0]='\0';
-
-  Serial.println("");
-  DEV_NAME.get(0, buf_eeprom);
-  Dev_name=String(buf_eeprom);
-  SERVER_IP.get(0, buf_eeprom);
-  Server_ip=String(buf_eeprom);
-  SERVER_PORT.get(0, Server_port);
-//  Server_port=String(buf_eeprom);
-  AP_NAME.get(0,buf_eeprom);
-  AP_id=String(buf_eeprom);
-  AP_PASSWORD.get(0,buf_eeprom);
-  AP_pw=String(buf_eeprom);
-
-  // setDevInfo();
-  // setDevParams();
-  // setSensorParams();
-
-  bool bBLEactivated;
-  if(true){
-    // Create the BLE Device
-    BLEDevice::init("Perpet");
-
-    // Create the BLE Server
-    pServer = BLEDevice::createServer();
-    pServer->setCallbacks(new MyServerCallbacks());
-    // Create the BLE Service
-    BLEService *pService = pServer->createService(SERVICE_UUID);
-    // Create a BLE Characteristic
-    pTxCharacteristic = pService->createCharacteristic(
-                      CHARACTERISTIC_UUID_TX,
-                      BLECharacteristic::PROPERTY_NOTIFY
-                    );
-    
-    pTxCharacteristic->addDescriptor(new BLE2902());
-    BLECharacteristic * pRxCharacteristic = pService->createCharacteristic(
-                        CHARACTERISTIC_UUID_RX,
-                        BLECharacteristic::PROPERTY_WRITE
-                      );
-    pRxCharacteristic->setCallbacks(new MyCallbacks());
-
-    BLEDescriptor *RxCharacteristic = new BLEDescriptor((uint16_t)0x2904);
-    BLECharacteristic * pCharacteristicAPID = pService->createCharacteristic(
-                        CHARACTERISTIC_UUID_APID,
-                        BLECharacteristic::PROPERTY_WRITE
-                      );
-    pCharacteristicAPID->setCallbacks(new MyCallbacks_APID());
-
-    BLECharacteristic * pCharacteristicAPPW = pService->createCharacteristic(
-                        CHARACTERISTIC_UUID_APPW,
-                        BLECharacteristic::PROPERTY_WRITE
-                      );
-    pCharacteristicAPPW->setCallbacks(new MyCallbacks_APPW());
-
-    BLECharacteristic * pCharacteristicMQTT = pService->createCharacteristic(
-                        CHARACTERISTIC_UUID_MQTT,
-                        BLECharacteristic::PROPERTY_WRITE
-                      );
-    pCharacteristicMQTT->setCallbacks(new MyCallbacks_MQTT());
-
-    // Start the service
-    pService->start();
-
-    // Start advertising
-    pServer->getAdvertising()->start();
-    Serial.println("[BLE]Waiting a client connection to notify...");
-  }
-
-
-
+  eepromSetup_custom();
+  // print params via serial port
   print_settings();
 
+  // BLE setup
+  bool bBLEactivated=true;
+  if(bBLEactivated){
+    ble_setup_custom();
+  }
   delay(1000);
+
+  // WiFi connection
   Serial.println("connecting to AP");
   bool isAPconnected=false;
   // WiFi.begin(ssid, pass);
@@ -470,9 +220,8 @@ void setup() {
   }else{
     Serial.println("AP not connected. Proceed anyway..");
   }
-  // Note: Local domain names (e.g. "Computer.local" on OSX) are not supported
-  // by Arduino. You need to set the IP address directly.
 
+  // MQTT setup
   MQTTclient.begin("jayutest.best", net);
   MQTTclient.onMessage(messageReceived);
   // MQTTclient.onMessageAdvanced(messageReceivedAdvanced);
@@ -480,21 +229,10 @@ void setup() {
   connect();
 
 
-
-  int8_t accdum[90];
+  // Init spiffs
+  int8_t accdum[1];
   Serial.println("writing data");
-  // for(int j = 0 ; j < 30 ; j++){
-  //   accdum[3*j]=(int8_t)(j+1);
-  //   accdum[3*j+1]=(int8_t)(j+1);
-  //   accdum[3*j+2]=-(int8_t)(j+1);
-  // }
   writeFileBytes(SPIFFS, path, (uint8_t*)accdum,0);
-
-
-  // for(int i = 0 ; i<60*1 ; i++){
-  //   appendFileBytes(SPIFFS, path, (uint8_t*)accdum,90);
-  //   Serial.println(i);
-  // }
   // light_sleep_purpet();
 }
 
@@ -523,7 +261,6 @@ void light_sleep_purpet(){
   // Serial.println("WiFi turned on!");
 }
 
-// int8_t dummy[LEN_ACCSMPL]={1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32};
 int8_t accbuf[90]; //3*1*30 Hz * 1 sec
 int32_t prsbuf[80];   //4* 10 Hz * 2 sec
 int16_t tempbuf[20]; // 2* 0.1 Hz * 100sec
@@ -625,7 +362,7 @@ void loop() {
           }
         } 
 
-        if(millis()-timestamp_dive>2*60*1000){
+        if(millis()-timestamp_dive>5*1000){
           break;
         }
       }
@@ -691,6 +428,10 @@ void loop() {
     }
   }
 
+
+
+
+  // BLE Control
   if (deviceConnected) {
     pTxCharacteristic->setValue(&txValue, 1);
     pTxCharacteristic->notify();
@@ -698,7 +439,7 @@ void loop() {
 		delay(50); // bluetooth stack will go into congestion, if too many packets are sent
 	}
 
-  // disconnecting
+  // if BLE is disconnected
   if (!deviceConnected && oldDeviceConnected) {
     delay(500); // give the bluetooth stack the chance to get things ready
     pServer->startAdvertising(); // restart advertising
