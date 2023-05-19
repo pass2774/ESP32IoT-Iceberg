@@ -1,6 +1,6 @@
 #include "eepromCustom.h"
 //#define USE_SERIAL Serial
-
+// Jinwoo
 
 void print_settings(){
   Serial.println("--------Current settings--------");
