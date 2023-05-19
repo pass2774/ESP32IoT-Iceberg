@@ -7,6 +7,15 @@
    https://github.com/me-no-dev/arduino-esp32fs-plugin */
 #define FORMAT_SPIFFS_IF_FAILED true
 
+// listDir(SPIFFS, "/", 0);
+// writeFile(SPIFFS, "/hello.txt", "Hello ");
+// appendFile(SPIFFS, "/hello.txt", "World!\r\n");
+// readFile(SPIFFS, "/hello.txt");
+// renameFile(SPIFFS, "/hello.txt", "/foo.txt");
+// testFileIO(SPIFFS, "/test.txt");
+// deleteFile(SPIFFS, "/hello.txt");
+
+
 void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
     Serial.printf("Listing directory: %s\r\n", dirname);
 

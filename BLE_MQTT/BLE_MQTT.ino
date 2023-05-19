@@ -1,31 +1,10 @@
-/*
-    Video: https://www.youtube.com/watch?v=oCMOYS71NIU
-    Based on Neil Kolban example for IDF: https://github.com/nkolban/esp32-snippets/blob/master/cpp_utils/tests/BLE%20Tests/SampleNotify.cpp
-    Ported to Arduino ESP32 by Evandro Copercini
-
-   Create a BLE server that, once we receive a connection, will send periodic notifications.
-   The service advertises itself as: 6E400001-B5A3-F393-E0A9-E50E24DCCA9E
-   Has a characteristic of: 6E400002-B5A3-F393-E0A9-E50E24DCCA9E - used for receiving data with "WRITE" 
-   Has a characteristic of: 6E400003-B5A3-F393-E0A9-E50E24DCCA9E - used to send data with  "NOTIFY"
-
-   The design of creating the BLE server is:
-   1. Create a BLE Server
-   2. Create a BLE Service
-   3. Create a BLE Characteristic on the Service
-   4. Create a BLE Descriptor on the characteristic
-   5. Start the service.
-   6. Start advertising.
-
-   In this example rxValue is the data received (only accessible inside that function).
-   And txValue is the data to be sent, in this example just a byte incremented every second. 
-*/
-
 
 #include "eepromCustom.h"
 #include "wifi_custom.h"
 #include "SerialUI.h"
 #include "spiffsCustom.h"
 #include "ble_custom.h"
+#include "sensorControl.h"
 
 #define uS_TO_S_FACTOR 1000000ULL  /* Conversion factor for micro seconds to seconds */
 #define TIME_TO_SLEEP  5        /* Time ESP32 will go to sleep (in seconds) */
@@ -177,19 +156,16 @@ const char* path = "/acc.txt";
 void setup() {
   Serial.begin(230400);
 
-  
+  // SPIFFS setup
   if(!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)){
       Serial.println("SPIFFS Mount Failed");
       return;
-  }
-    
+  }    
   listDir(SPIFFS, "/", 0);
-  // writeFile(SPIFFS, "/hello.txt", "Hello ");
-  // appendFile(SPIFFS, "/hello.txt", "World!\r\n");
-  // readFile(SPIFFS, "/hello.txt");
-  // renameFile(SPIFFS, "/hello.txt", "/foo.txt");
-  // testFileIO(SPIFFS, "/test.txt");
   deleteFile(SPIFFS, "/acc.txt");
+  int8_t accdum[1];
+  Serial.println("writing data");
+  writeFileBytes(SPIFFS, path, (uint8_t*)accdum,0);
 
 
   // EEPROM setup
@@ -229,10 +205,6 @@ void setup() {
   connect();
 
 
-  // Init spiffs
-  int8_t accdum[1];
-  Serial.println("writing data");
-  writeFileBytes(SPIFFS, path, (uint8_t*)accdum,0);
   // light_sleep_purpet();
 }
 
@@ -274,17 +246,38 @@ bool bViewerActive=false;
 bool bPetActive=true;
 
 void loop() {
-      // ESP.restart();
-  Serial.println("loop");
+  // ESP.restart();
+
+  // BLE Control
+  if (deviceConnected) {
+    bViewerActive = true;
+    pTxCharacteristic->setValue(&txValue, 1);
+    pTxCharacteristic->notify();
+    txValue++;
+		delay(50); // bluetooth stack will go into congestion, if too many packets are sent
+	}else{
+    bViewerActive = false;
+  }
+
+  // if BLE is disconnected
+  if (!deviceConnected && oldDeviceConnected) {
+    delay(500); // give the bluetooth stack the chance to get things ready
+    pServer->startAdvertising(); // restart advertising
+    Serial.println("start advertising");
+    oldDeviceConnected = deviceConnected;
+  }
+  // connecting
+  if (deviceConnected && !oldDeviceConnected) {
+  // do stuff here on connecting
+    oldDeviceConnected = deviceConnected;
+  }
+
 
   MQTTclient.loop();
   delay(10);  // <- fixes some issues with WiFi stability
-
   if (!MQTTclient.connected()) {
     connect();
   }
-
-  Serial.println("mqtt done");
 
   if(bViewerActive==true){
     // setCpuFrequencyMhz(80); //No BT/Wifi: 10,20,40 MHz, for BT/Wifi, 80,160,240MHz 
@@ -431,26 +424,7 @@ void loop() {
 
 
 
-  // BLE Control
-  if (deviceConnected) {
-    pTxCharacteristic->setValue(&txValue, 1);
-    pTxCharacteristic->notify();
-    txValue++;
-		delay(50); // bluetooth stack will go into congestion, if too many packets are sent
-	}
 
-  // if BLE is disconnected
-  if (!deviceConnected && oldDeviceConnected) {
-    delay(500); // give the bluetooth stack the chance to get things ready
-    pServer->startAdvertising(); // restart advertising
-    Serial.println("start advertising");
-    oldDeviceConnected = deviceConnected;
-  }
-  // connecting
-  if (deviceConnected && !oldDeviceConnected) {
-  // do stuff here on connecting
-    oldDeviceConnected = deviceConnected;
-  }
   
 
   // light_sleep_purpet();/
