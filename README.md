@@ -8,7 +8,10 @@ Caution!! Other versions may have different EEPROMClass methods!
 2. In Tools tab,
 - Board > esp32, choose "ESP32 Dev Module"
 - Partition Scheme, choose "HugeApp"
-- 
+
+3. For serial communication, install VCP driver
+- https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers?tab=downloads
+
 ## Library dependencies
 
 - ArduinoJson (by Benoit Blanchon) v6.19.4 
