@@ -110,7 +110,15 @@ void setSensorIMU(){
   }
 }
 
-
+float getSensorPressure(){
+  sensors_event_t temp_event, pressure_event;
+  if (dps.pressureAvailable()) {
+    dps_pressure->getEvent(&pressure_event);
+    Serial.print(pressure_event.pressure);
+  }
+  return pressure_event.pressure;
+  // return (float)12.345f;
+}
 
 void getSensorDataAlt(){
   sensors_event_t temp_event, pressure_event;
@@ -142,14 +150,20 @@ void getSensorDataRH(){
   Serial.println(timestamp);
 }
 
-void getSensorDataIMU(){
-  IMU.update();
-  IMU.getAccel(&accelData);
-  Serial.print(accelData.accelX);
-  Serial.print("\t");
-  Serial.print(accelData.accelY);
-  Serial.print("\t");
-  Serial.print(accelData.accelZ);
-  Serial.print("\t");
-  Serial.println(IMU.getTemp());
+void getSensorDataIMU(int8_t arr[]){
+  // IMU.update();
+  // IMU.getAccel(&accelData);
+  // Serial.print(accelData.accelX);
+  // Serial.print("\t");
+  // Serial.print(accelData.accelY);
+  // Serial.print("\t");
+  // Serial.print(accelData.accelZ);
+  // Serial.print("\t");
+  // Serial.println(IMU.getTemp());
+
+  arr[0]=1;
+  arr[1]=2;
+  arr[2]=3;
+
+  return;
 }

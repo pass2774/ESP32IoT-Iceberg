@@ -67,7 +67,7 @@ unsigned long lastMillis = 0;
 #define LEN_PRSSMPL 20
 #define LEN_TRHSMPL 20
 int8_t acc[LEN_ACCSMPL+2][3];
-uint32_t prs[LEN_PRSSMPL+6];
+int8_t prs[LEN_PRSSMPL*4+6];
 int16_t trh[LEN_TRHSMPL+6];
 
 /************************* WiFi Access Point *********************************/
@@ -88,9 +88,9 @@ void connect() {
 
   Serial.println("\nconnected!");
 
-  MQTTclient.subscribe("perpet/SerialNumber/acc");
-  MQTTclient.subscribe("perpet/SerialNumber/prs");
-  MQTTclient.subscribe("perpet/SerialNumber/trh");
+  // MQTTclient.subscribe("perpet/SerialNumber/acc");
+  // MQTTclient.subscribe("perpet/SerialNumber/prs");
+  // MQTTclient.subscribe("perpet/SerialNumber/trh");
   MQTTclient.subscribe("perpet/SerialNumber/CMD");
   // client.unsubscribe("/hello");
 }
@@ -102,22 +102,23 @@ void connect() {
   // Serial.println("topic:"+topic2);
   // Serial.print("len:");
   // Serial.println(length);
-
+// c:computre/filename/filename
 void messageReceived(String &topic, String &payload) {
   // Serial.println("incoming: " + topic + " - " + payload);
-  if(topic == "perpet/SerialNumber/acc"){
+  if(topic == "/perpet/SerialNumber/CMD"){
+    //www.ants.com/perpet/SerialNumber/acc
     // const char* rxPacket=payload.c_str();
     char rxPacket[LEN_ACCSMPL+2];
     payload.toCharArray(rxPacket,(LEN_ACCSMPL+2),0);
     Serial.println("******");      
     Serial.println("decoded:");
-    for(int i=0;i<(LEN_ACCSMPL+2);i++){
-      for(int j=0;j<3;j++){
-        Serial.print((int8_t)rxPacket[i*3+j]);
-        Serial.print(",");
-      }
-      Serial.println();
-    }
+    // for(int i=0;i<(LEN_ACCSMPL+2);i++){
+    //   for(int j=0;j<3;j++){
+    //     Serial.print((int8_t)rxPacket[i*3+j]);
+    //     Serial.print(",");
+    //   }
+    //   Serial.println();
+    // }
     Serial.println("******");      
   }
   if(topic == "perpet/SerialNumber/trh"){
@@ -199,12 +200,23 @@ void setup() {
 
   // MQTT setup
   MQTTclient.begin("jayutest.best", net);
+  // MQTTclient.begin("172.30.1.19",8404, net);
   MQTTclient.onMessage(messageReceived);
   // MQTTclient.onMessageAdvanced(messageReceivedAdvanced);
 
   connect();
 
+  Serial.println("DPS310");
+  if (! dps.begin_I2C()) {             // Can pass in I2C address here
+  //if (! dps.begin_SPI(DPS310_CS)) {  // If you want to use SPI
+    Serial.println("Failed to find DPS");
+    while (1) yield();
+  }
+  Serial.println("DPS OK!");
 
+  dps.configurePressure(DPS310_64HZ, DPS310_64SAMPLES);
+  dps.configureTemperature(DPS310_64HZ, DPS310_64SAMPLES);
+  
   // light_sleep_purpet();
 }
 
@@ -238,7 +250,7 @@ int32_t prsbuf[80];   //4* 10 Hz * 2 sec
 int16_t tempbuf[20]; // 2* 0.1 Hz * 100sec
 
 uint32_t timestamp[3] = {2000,2000,2000};
-uint32_t dt[3]={33,100,10000};
+uint32_t dt[3]={33,200,10000};
 int8_t idx[3]={0,0,0};
 uint16_t iter=0;
 
@@ -279,6 +291,7 @@ void loop() {
     connect();
   }
 
+  bViewerActive=true;
   if(bViewerActive==true){
     // setCpuFrequencyMhz(80); //No BT/Wifi: 10,20,40 MHz, for BT/Wifi, 80,160,240MHz 
     //function - sensing
@@ -288,28 +301,71 @@ void loop() {
     timestamp[0]=millis(); //check it later
     if(millis()>timestamp[0]){
       timestamp[0]+=dt[0];
+      if(idx[0]==2){
+        Serial.println(timestamp[0]);
+        acc[0][0]=(int8_t)(timestamp[0]>>24);
+        acc[0][1]=(int8_t)(timestamp[0]>>16);
+        acc[0][2]=(int8_t)(timestamp[0]>>8);
+        acc[1][0]=(int8_t)(timestamp[0]);
+        acc[1][1]=0;
+        acc[1][2]=LEN_ACCSMPL;
+        iter++;
+      }
       // getSensorDataIMU();
       acc[idx[0]][0]=(int8_t)(idx[0]+1);
       acc[idx[0]][1]=(int8_t)(idx[0]+1);
       acc[idx[0]][2]=-(int8_t)(idx[0]+1);
       idx[0]++;
       if(idx[0]==LEN_ACCSMPL){
+        Serial.println("acc tx!");
         MQTTclient.publish("perpet/SerialNumber/acc", (const char*)acc,LEN_ACCSMPL*3);
-        idx[0]=0;
+        idx[0]=2;
       }
     }     
 
     if(millis()>timestamp[1]){
       //sensor data sampling
       timestamp[1]+=dt[1];
+      if(idx[1]==0){
+        Serial.println(timestamp[1]);
+        prs[0]=(int8_t)(timestamp[1]>>24);
+        prs[1]=(int8_t)(timestamp[1]>>16);
+        prs[2]=(int8_t)(timestamp[1]>>8);
+        prs[3]=(int8_t)(timestamp[1]);
+        prs[4]=0;
+        prs[5]=LEN_PRSSMPL;
+      }
+      float sensor_data=getSensorPressure();
+      Serial.print("idx[1]:");
+      Serial.print(idx[1]);
+      Serial.print("--");
+      Serial.println(sensor_data);
+      memcpy(prs+4*idx[1]+6,&sensor_data,sizeof(float));
+
+      // prs[4*idx[1]+6]=(int8_t)((int32_t)sensor_data>>24);
+      // prs[4*idx[1]+7]=(int8_t)((int32_t)sensor_data>>16);
+      // prs[4*idx[1]+8]=(int8_t)((int32_t)sensor_data>>8);
+      // prs[4*idx[1]+9]=(int8_t)((int32_t)sensor_data>>0);
+      idx[1]++;
       if(idx[1]==LEN_PRSSMPL){
-        MQTTclient.publish("perpet/SerialNumber/prs", (const char*)prs,LEN_PRSSMPL*4);
+        idx[1]=0;
+        Serial.println("prs tx!");
+        MQTTclient.publish("perpet/SerialNumber/prs", (const char*)prs,LEN_PRSSMPL*4+6);
+        for(int i = 0;i<LEN_PRSSMPL;i++){
+          Serial.print(i);
+          Serial.print(":");
+          float rxbuf;
+          memcpy(&rxbuf,prs+4*i+6,sizeof(float));
+          // (float)((((int32_t)prs[4*i+6])<<24)|(((int32_t)prs[4*i+7])<<16)|(((int32_t)prs[4*i+8])<<8)|(((int32_t)prs[4*i+9])<<0));
+          Serial.println(rxbuf);
+        }
       }
     }
     if(millis()>timestamp[2]){
       //sensor data sampling
       timestamp[2]+=dt[2];
       if(idx[2]==LEN_TRHSMPL){
+        Serial.println("trh tx!");
         MQTTclient.publish("perpet/SerialNumber/trh", (const char*)trh,LEN_TRHSMPL*4);
       }
     }
@@ -328,26 +384,38 @@ void loop() {
 
       uint32_t timestamp_dive = millis(); 
       idx[0]=2;
+      timestamp[0]=millis(); //check it later
       while(true){
         //logging sensor data
         // IMU: 30Hz, Alt: 10 Hz, RH: 10s, T: 10s
-        timestamp[0]=millis(); //check it later
         if(millis()>timestamp[0]){
           timestamp[0]+=dt[0];
           if(idx[0]==2){
-            acc[0][0]=30;
-            acc[0][1]=(int8_t)(iter>>8);
-            acc[0][2]=(int8_t)iter;
-            acc[1][0]=30;
-            acc[1][1]=(int8_t)(iter>>8);
-            acc[1][2]=(int8_t)iter;
+            Serial.println(timestamp[0]);
+            acc[0][0]=(int8_t)(timestamp[0]>>24);
+            acc[0][1]=(int8_t)(timestamp[0]>>16);
+            acc[0][2]=(int8_t)(timestamp[0]>>8);
+            acc[1][0]=(int8_t)(timestamp[0]);
+            acc[1][1]=0;
+            acc[1][2]=LEN_ACCSMPL;
+
+            // acc[0][0]=1;
+            // acc[0][1]=2;
+            // acc[0][2]=3;
+            // acc[1][0]=4;
+            // acc[1][1]=5;
+            // acc[1][2]=6;
+
+            // acc[0][0]=30;
+            // acc[0][1]=(int8_t)(iter>>8);
+            // acc[0][2]=(int8_t)iter;
             // Serial.println(iter);
             iter++;
           }
-          // getSensorDataIMU();
-          acc[idx[0]][0]=(int8_t)(idx[0]+1);
-          acc[idx[0]][1]=(int8_t)(idx[0]+1);
-          acc[idx[0]][2]=-(int8_t)(idx[0]+1);
+          getSensorDataIMU(acc[idx[0]]);
+          // acc[idx[0]][0]=(int8_t)(idx[0]+1);
+          // acc[idx[0]][1]=(int8_t)(idx[0]+1);
+          // acc[idx[0]][2]=-(int8_t)(idx[0]+1);
           idx[0]++;
           if(idx[0]==LEN_ACCSMPL+2){
             appendFileBytes(SPIFFS, path, (uint8_t*)acc, LEN_ACCSMPL*3+6);
@@ -394,14 +462,14 @@ void loop() {
         for(int i = 0; i<2*60; i++){
           file.seek(i*(LEN_ACCSMPL*3+6));
           file.read(buffer,LEN_ACCSMPL*3+6);
-          // for(int i = 0 ; i < LEN_ACCBUF*3 ; i ++){
-          //   Serial.print(buffer[i]);
-          //   if(i%3==2){
-          //     Serial.println();
-          //   }else{
-          //     Serial.print(",");
-          //   }
-          // }
+          for(int i = 0 ; i < LEN_ACCSMPL*3 ; i ++){
+            Serial.print(buffer[i]);
+            if(i%3==2){
+              Serial.println();
+            }else{
+              Serial.print(",");
+            }
+          }
           Serial.println(i);
           MQTTclient.publish("perpet/SerialNumber/acc", (const char*)buffer,LEN_ACCSMPL*3+6);
         }

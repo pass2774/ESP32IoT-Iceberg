@@ -149,7 +149,7 @@ class MyCallbacks_MQTT: public BLECharacteristicCallbacks {
 
 void ble_setup_custom(){
     // Create the BLE Device
-    BLEDevice::init("Perpet");
+    BLEDevice::init("Perpet_Joonhwa");
 
     // Create the BLE Server
     pServer = BLEDevice::createServer();
