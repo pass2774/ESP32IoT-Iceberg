@@ -11,6 +11,7 @@
 // EEPROMClass  AP_PASSWORD("ap_pw", 0x100);
 EEPROMClass  INIT_FLAG("INIT_FLAG");
 EEPROMClass  DEV_NAME("dev_name");
+EEPROMClass  SERIAL_NUMBER("serial_number");
 EEPROMClass  SERVER_IP("server_ip");
 EEPROMClass  SERVER_PORT("server_port");
 EEPROMClass  AP_NAME("ap_id");
@@ -24,11 +25,13 @@ EEPROMClass  SENSOR_ACC("sensor_acc");
 
 //char* ssid = "Compass";
 //char* password = "iepstt92";
-String Dev_name = "exampleDev";
-String Server_ip = "192.168.0.3";
-uint16_t Server_port = 3000;
-String AP_id = "Compass";
-String AP_pw = "iepstt92";
+String dev_name = "exampleDev";
+String serial_number = "SN000-000-0000";
+String server_addr = "192.168.0.3";
+uint16_t server_port = 3000;
+String AP_id = "JoonhwaHotSpot";
+String AP_pw = "iepstt2774";
+String topic_base = "perpet/"+serial_number;
 
 struct Sensor{
   String name;
@@ -73,6 +76,12 @@ bool init_eeprom(){
     delay(1000);
     ESP.restart();
   }
+  if (!SERIAL_NUMBER.begin(0xFF)) {
+    Serial.println("Failed to initialize EEPROM:SERIAL_NUMBER");
+    Serial.println("Restarting...");
+    delay(1000);
+    ESP.restart();
+  }  
   if (!SERVER_IP.begin(0x200)) {
     Serial.println("Failed to initialize EEPROM:SERVER_IP");
     Serial.println("Restarting...");
@@ -121,13 +130,16 @@ void eepromSetup_custom(){
   Serial.println(init_flag);
   Serial.println("--------");
 
-  if(init_flag!="EEPROM_INITIATED"){
+  // if(init_flag!="EEPROM_INITIATED"){
+  if(true){
   // Write: Variables ---> EEPROM stores
-    DEV_NAME.writeString(0, Dev_name);
+    DEV_NAME.writeString(0, dev_name);
     DEV_NAME.commit();
-    SERVER_IP.writeString(0, Server_ip);
+    SERIAL_NUMBER.writeString(0, serial_number);
+    SERIAL_NUMBER.commit();
+    SERVER_IP.writeString(0, server_addr);
     SERVER_IP.commit();
-    SERVER_PORT.put(0, Server_port);
+    SERVER_PORT.put(0, server_port);
     SERVER_PORT.commit();
     AP_NAME.writeString(0, AP_id);
     AP_NAME.commit();
@@ -136,9 +148,9 @@ void eepromSetup_custom(){
 
     INIT_FLAG.writeString(0, "EEPROM_INITIATED");
     INIT_FLAG.commit();
-    Serial.print("device name: ");   Serial.println(Dev_name);
-    Serial.print("target server ip: ");   Serial.println(Server_ip);
-    Serial.print("target server port: ");   Serial.println(Server_port);
+    Serial.print("device name: ");   Serial.println(dev_name);
+    Serial.print("target server addr: ");   Serial.println(server_addr);
+    Serial.print("target server port: ");   Serial.println(server_port);
     Serial.print("AP name: ");   Serial.println(AP_id);
     Serial.print("AP password: ");   Serial.println(AP_pw);
     Serial.println("EEPROM now initiated.");
@@ -152,10 +164,12 @@ void eepromSetup_custom(){
 
   Serial.println("");
   DEV_NAME.get(0, buf_eeprom);
-  Dev_name=String(buf_eeprom);
+  dev_name=String(buf_eeprom);
+  SERIAL_NUMBER.get(0, buf_eeprom);
+  serial_number=String(buf_eeprom);
   SERVER_IP.get(0, buf_eeprom);
-  Server_ip=String(buf_eeprom);
-  SERVER_PORT.get(0, Server_port);
+  server_addr=String(buf_eeprom);
+  SERVER_PORT.get(0, server_port);
 //  Server_port=String(buf_eeprom);
   AP_NAME.get(0,buf_eeprom);
   AP_id=String(buf_eeprom);

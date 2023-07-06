@@ -88,27 +88,6 @@ void setSensorRH(){
   }
 }
 
-void setSensorIMU(){
-    int err = IMU.init(calib, IMU_ADDRESS);
-  if (err != 0) {
-    Serial.print("Error initializing IMU: ");
-    Serial.println(err);
-    while (true) {
-      ;
-    }
-  }
-  
-  //err = IMU.setGyroRange(500);      //USE THESE TO SET THE RANGE, IF AN INVALID RANGE IS SET IT WILL RETURN -1
-  //err = IMU.setAccelRange(2);       //THESE TWO SET THE GYRO RANGE TO ±500 DPS AND THE ACCELEROMETER RANGE TO ±2g
-  
-  if (err != 0) {
-    Serial.print("Error Setting range: ");
-    Serial.println(err);
-    while (true) {
-      ;
-    }
-  }
-}
 
 float getSensorPressure(){
   sensors_event_t temp_event, pressure_event;
@@ -150,20 +129,64 @@ void getSensorDataRH(){
   Serial.println(timestamp);
 }
 
-void getSensorDataIMU(int8_t arr[]){
-  // IMU.update();
-  // IMU.getAccel(&accelData);
-  // Serial.print(accelData.accelX);
-  // Serial.print("\t");
-  // Serial.print(accelData.accelY);
-  // Serial.print("\t");
-  // Serial.print(accelData.accelZ);
-  // Serial.print("\t");
-  // Serial.println(IMU.getTemp());
+void getSensorDataTRH(int8_t* dst_arr){
+  // sensors_event_t humidity, temp;
+  // uint32_t timestamp = millis();
+  // timestamp = millis() - timestamp;
+  // sht4.getEvent(&humidity, &temp);// populate temp and humidity objects with fresh data
 
-  arr[0]=1;
-  arr[1]=2;
-  arr[2]=3;
+  // Serial.print("Temperature: "); Serial.print(temp.temperature); Serial.println(" degrees C");
+  // Serial.print("Humidity: "); Serial.print(humidity.relative_humidity); Serial.println("% rH");
+  // Serial.print("Read duration (ms): ");
+  // Serial.println(timestamp);
+
+  int16_t buf[3] = {
+    (int16_t)(20*10),
+    (int16_t)(20*20),
+  };
+  memcpy(dst_arr,buf,3);
+}
+
+void setSensorIMU(){
+    int err = IMU.init(calib, IMU_ADDRESS);
+  if (err != 0) {
+    Serial.print("Error initializing IMU: ");
+    Serial.println(err);
+    while (true) {
+      ;
+    }
+  }
+  
+  //err = IMU.setGyroRange(500);      //USE THESE TO SET THE RANGE, IF AN INVALID RANGE IS SET IT WILL RETURN -1
+  //err = IMU.setAccelRange(2);       //THESE TWO SET THE GYRO RANGE TO ±500 DPS AND THE ACCELEROMETER RANGE TO ±2g
+  
+  if (err != 0) {
+    Serial.print("Error Setting range: ");
+    Serial.println(err);
+    while (true) {
+      ;
+    }
+  }
+}
+
+void getSensorDataIMU(int8_t* dst_arr){
+  IMU.update();
+  IMU.getAccel(&accelData);
+  Serial.println("imu:");
+  Serial.print(accelData.accelX);
+  Serial.print("\t");
+  Serial.print(accelData.accelY);
+  Serial.print("\t");
+  Serial.print(accelData.accelZ);
+  Serial.print("\t");
+  Serial.println(IMU.getTemp());
+
+  int8_t buf[3] = {
+    (int8_t)(20*accelData.accelX),
+    (int8_t)(20*accelData.accelY),
+    (int8_t)(20*accelData.accelZ)
+  };
+  memcpy(dst_arr,buf,3);
 
   return;
 }

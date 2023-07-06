@@ -4,9 +4,10 @@
 
 void print_settings(){
   Serial.println("--------Current settings--------");
-  Serial.print("Device name: ");   Serial.println(Dev_name);
-  Serial.print("Server ip: ");   Serial.println(Server_ip);
-  Serial.print("Server port: ");   Serial.println(Server_port);
+  Serial.print("Device name: ");   Serial.println(dev_name);
+  Serial.print("Serial Number: ");   Serial.println(serial_number);
+  Serial.print("MQTT Server address: ");   Serial.println(server_addr);
+  Serial.print("MQTTT Server port: ");   Serial.println(server_port);
   Serial.print("AP name: ");   Serial.println(AP_id);
   Serial.print("AP password: ");   Serial.println(AP_pw);
   Serial.println("--------------------------------");
@@ -61,9 +62,9 @@ void parse_packet(String str){
   else if(header.equalsIgnoreCase("settings")){
   
     DEV_NAME.get(0, buf_eeprom);
-    Dev_name=String(buf_eeprom);
+    dev_name=String(buf_eeprom);
     SERVER_IP.get(0, buf_eeprom);
-    Server_ip=String(buf_eeprom);
+    server_addr=String(buf_eeprom);
     AP_NAME.get(0,buf_eeprom);
     AP_id=String(buf_eeprom);
     AP_PASSWORD.get(0,buf_eeprom);
@@ -74,8 +75,8 @@ void parse_packet(String str){
     Serial.println("DeviceName has been updated.");
     Serial.print("New name: ");
     Serial.println(data);
-    Dev_name=data;
-    DEV_NAME.writeString(0, Dev_name);
+    dev_name=data;
+    DEV_NAME.writeString(0, dev_name);
     DEV_NAME.commit();
     Serial.println("Input reset to apply the result.(restart)");
     vTaskDelay(3000);    
@@ -84,8 +85,8 @@ void parse_packet(String str){
     Serial.println("ServerIP has been updated");
     Serial.print("New IP address: ");
     Serial.println(data);
-    Server_ip=data;
-    SERVER_IP.writeString(0, Server_ip);
+    server_addr=data;
+    SERVER_IP.writeString(0, server_addr);
     SERVER_IP.commit();
     Serial.println("Input reset to apply the result.(restart)");
     vTaskDelay(3000);    
@@ -94,8 +95,8 @@ void parse_packet(String str){
     Serial.println("ServerPort has been updated");
     Serial.print("New Port: ");
     Serial.println(data);
-    Server_port=(uint16_t)data.toInt();
-    SERVER_PORT.put(0, Server_port);
+    server_port=(uint16_t)data.toInt();
+    SERVER_PORT.put(0, server_port);
     SERVER_PORT.commit();
     Serial.println("Input reset to apply the result.(restart)");
     vTaskDelay(3000);    
