@@ -29,8 +29,8 @@ String dev_name = "exampleDev";
 String serial_number = "SN000-DEV-0000";
 String server_addr = "192.168.0.3";
 uint16_t server_port = 3000;
-String AP_id = "JoonhwaHotSpot";
-String AP_pw = "iepstt2774";
+String AP_id = "AndroidHotspot2371";
+String AP_pw = "manggudtd";
 String topic_base = "perpet/"+serial_number;
 
 struct Sensor{

@@ -34,6 +34,10 @@ void print_wakeup_reason(){
   }
 }
 
+void IRAM_ATTR intSLP()
+{
+  deep_sleep_perpet();
+}
 
 
 /***********************************************************************
@@ -75,16 +79,20 @@ int8_t trh[LEN_TRHSMPL*4+6];
 
 void connect() {
   Serial.print("checking wifi...");
+  digitalWrite(17,HIGH);
   while (WiFi.status() != WL_CONNECTED) {
     Serial.print(".");
     delay(1000);
   }
+  digitalWrite(17,LOW);
 
   Serial.print("\nconnecting...");
+  digitalWrite(17,HIGH);
   while (!MQTTclient.connect("arduino", "public", "public")) {
     Serial.print(".");
     delay(1000);
   }
+  digitalWrite(17,LOW);
 
   Serial.println("\nconnected!");
 
@@ -154,6 +162,16 @@ const char* path = "/acc.txt";
 //   10  |       74         |            11       |      14400       | 100kHz
 void setup() {
   Serial.begin(230400);
+  pinMode(2, INPUT);
+  pinMode(16, OUTPUT);
+  pinMode(17, OUTPUT);
+  pinMode(18, OUTPUT);
+
+  digitalWrite(16, HIGH);
+  digitalWrite(17, HIGH);
+  delay(2000);
+  digitalWrite(16, LOW);
+  digitalWrite(17, LOW);
 
   // SPIFFS setup
   if(!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)){
@@ -204,6 +222,7 @@ void setup() {
 
   connect();
 
+<<<<<<< HEAD
   // Serial.println("DPS310");
   // if (! dps.begin_I2C()) {             // Can pass in I2C address here
   // //if (! dps.begin_SPI(DPS310_CS)) {  // If you want to use SPI
@@ -213,10 +232,31 @@ void setup() {
   // Serial.println("DPS OK!");
   // dps.configurePressure(DPS310_64HZ, DPS310_64SAMPLES);
   // dps.configureTemperature(DPS310_64HZ, DPS310_64SAMPLES);
+=======
+  digitalWrite(16, HIGH);
+  delay(500);
+  digitalWrite(17, HIGH);
+  delay(500);
+  digitalWrite(16, LOW);
+  delay(500);
+  digitalWrite(17, LOW);
+
+  Serial.println("DPS310");
+  if (! dps.begin_I2C()) {             // Can pass in I2C address here
+  //if (! dps.begin_SPI(DPS310_CS)) {  // If you want to use SPI
+    Serial.println("Failed to find DPS");
+    while (1) yield();
+  }
+  Serial.println("DPS OK!");
+
+  dps.configurePressure(DPS310_64HZ, DPS310_64SAMPLES);
+  dps.configureTemperature(DPS310_64HZ, DPS310_64SAMPLES);
+>>>>>>> 56463ff7fe450ff1f888f8de9e3a4c2759d91d64
 
   setSensorPRS();
 
   setSensorIMU();
+<<<<<<< HEAD
   setSensorTRH();
   // Define Dataformat
   // acc[0][0]=0xA0;
@@ -229,28 +269,36 @@ void setup() {
   trh[1]=LEN_PRSSMPL;
 
   // light_sleep_purpet();
+=======
+  
+  // deep_sleep_perpet();
+  attachInterrupt(digitalPinToInterrupt(2), intSLP, HIGH);
+
+  digitalWrite(16, HIGH);
+  digitalWrite(18, HIGH);
+>>>>>>> 56463ff7fe450ff1f888f8de9e3a4c2759d91d64
 }
 
-void light_sleep_purpet(){
-  //Increment boot number and print it every reboot
-  ++bootCount;
-  Serial.println("Boot number: " + String(bootCount));
-  //Print the wakeup reason for ESP32
-  print_wakeup_reason();
+void deep_sleep_perpet(){
+  // //Increment boot number and print it every reboot
+  // ++bootCount;
+  // Serial.println("Boot number: " + String(bootCount));
+  // //Print the wakeup reason for ESP32
+  // print_wakeup_reason();
 
   /*
   First we configure the wake up source
   We set our ESP32 to wake up every 5 seconds
   */
-  esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR);
-  Serial.println("Setup ESP32 to sleep for every " + String(TIME_TO_SLEEP) + " Seconds");
+  esp_sleep_enable_ext0_wakeup(GPIO_NUM_2, 0);
+  // Serial.println("Setup ESP32 to sleep for every " + String(TIME_TO_SLEEP) + " Seconds");
 
   Serial.println("Going to sleep now");
   Serial.flush();
   // WiFi.disconnect(true);
   // WiFi.mode(WIFI_OFF);
 
-  esp_light_sleep_start();
+  esp_deep_sleep_start();
   Serial.println("WiFi turning on!");
   // WiFi.begin(ssid, pass);
   // Serial.println("WiFi turned on!");
@@ -312,9 +360,20 @@ void loop() {
     // save sensor data
     // IMU: 30Hz, Alt: 10 Hz, RH: 10s, T: 10s
     if(millis()>timestamp[0]){
+<<<<<<< HEAD
       if(idx[0]==0){
         Serial.println("timestamp[0]="+String(timestamp[0]));
         memcpy(&acc[2],&timestamp[0],sizeof(uint32_t));
+=======
+      digitalWrite(17, HIGH);
+      timestamp[0]+=dt[0];
+      if(idx[0]==2){
+        Serial.println(timestamp[0]);
+        memcpy(acc,&timestamp[0],sizeof(uint32_t));
+        acc[1][1]=0;
+        acc[1][2]=LEN_ACCSMPL;
+        iter++;
+>>>>>>> 56463ff7fe450ff1f888f8de9e3a4c2759d91d64
       }
       timestamp[0]+=dt[0];
       getSensorDataIMU(acc+3*idx[0]+6);
@@ -335,9 +394,17 @@ void loop() {
         MQTTclient.publish((topic_base+"/acc").c_str(), (const char*)acc,LEN_ACCSMPL*3+6);
         idx[0]=0;
       }
+
+      digitalWrite(17, LOW);
     }     
 
     if(millis()>timestamp[1]){
+<<<<<<< HEAD
+=======
+      digitalWrite(17, HIGH);
+      //sensor data sampling
+      timestamp[1]+=dt[1];
+>>>>>>> 56463ff7fe450ff1f888f8de9e3a4c2759d91d64
       if(idx[1]==0){
         Serial.println("timestamp[1]="+String(timestamp[1]));
         memcpy(&prs[2],&timestamp[1],sizeof(uint32_t));
@@ -357,10 +424,17 @@ void loop() {
         //   Serial.println(rxbuf);
         // }
       }
+      digitalWrite(17, LOW);
     }
 
 
     if(millis()>timestamp[2]){
+<<<<<<< HEAD
+=======
+      digitalWrite(17, HIGH);
+      //sensor data sampling
+      timestamp[2]+=dt[2];
+>>>>>>> 56463ff7fe450ff1f888f8de9e3a4c2759d91d64
       if(idx[2]==0){
         Serial.println("timestamp[2]="+String(timestamp[2]));
         memcpy(&trh[2],&timestamp[2],sizeof(uint32_t));
@@ -378,6 +452,7 @@ void loop() {
         Serial.println("trh tx!");
         MQTTclient.publish((topic_base+"/trh").c_str(), (const char*)trh,LEN_TRHSMPL*4+6);
       }
+      digitalWrite(17, LOW);
     }
 
   }else{
@@ -494,5 +569,5 @@ void loop() {
 
   
 
-  // light_sleep_purpet();/
+  // deep_sleep_perpet();/
 }
