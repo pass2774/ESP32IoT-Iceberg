@@ -34,6 +34,10 @@ void print_wakeup_reason(){
   }
 }
 
+void IRAM_ATTR intSLP()
+{
+  deep_sleep_perpet();
+}
 
 
 /***********************************************************************
@@ -75,16 +79,20 @@ int8_t trh[LEN_TRHSMPL*4+6];
 
 void connect() {
   Serial.print("checking wifi...");
+  digitalWrite(17,HIGH);
   while (WiFi.status() != WL_CONNECTED) {
     Serial.print(".");
     delay(1000);
   }
+  digitalWrite(17,LOW);
 
   Serial.print("\nconnecting...");
+  digitalWrite(17,HIGH);
   while (!MQTTclient.connect("arduino", "public", "public")) {
     Serial.print(".");
     delay(1000);
   }
+  digitalWrite(17,LOW);
 
   Serial.println("\nconnected!");
 
@@ -156,6 +164,16 @@ const char* path = "/acc.txt";
 //   10  |       74         |            11       |      14400       | 100kHz
 void setup() {
   Serial.begin(230400);
+  pinMode(2, INPUT);
+  pinMode(16, OUTPUT);
+  pinMode(17, OUTPUT);
+  pinMode(18, OUTPUT);
+
+  digitalWrite(16, HIGH);
+  digitalWrite(17, HIGH);
+  delay(2000);
+  digitalWrite(16, LOW);
+  digitalWrite(17, LOW);
 
   // SPIFFS setup
   if(!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)){
@@ -206,6 +224,14 @@ void setup() {
 
   connect();
 
+  digitalWrite(16, HIGH);
+  delay(500);
+  digitalWrite(17, HIGH);
+  delay(500);
+  digitalWrite(16, LOW);
+  delay(500);
+  digitalWrite(17, LOW);
+
   Serial.println("DPS310");
   if (! dps.begin_I2C()) {             // Can pass in I2C address here
   //if (! dps.begin_SPI(DPS310_CS)) {  // If you want to use SPI
@@ -220,29 +246,33 @@ void setup() {
 
   setSensorIMU();
   
-  // light_sleep_purpet();
+  // deep_sleep_perpet();
+  attachInterrupt(digitalPinToInterrupt(2), intSLP, HIGH);
+
+  digitalWrite(16, HIGH);
+  digitalWrite(18, HIGH);
 }
 
-void light_sleep_purpet(){
-  //Increment boot number and print it every reboot
-  ++bootCount;
-  Serial.println("Boot number: " + String(bootCount));
-  //Print the wakeup reason for ESP32
-  print_wakeup_reason();
+void deep_sleep_perpet(){
+  // //Increment boot number and print it every reboot
+  // ++bootCount;
+  // Serial.println("Boot number: " + String(bootCount));
+  // //Print the wakeup reason for ESP32
+  // print_wakeup_reason();
 
   /*
   First we configure the wake up source
   We set our ESP32 to wake up every 5 seconds
   */
-  esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR);
-  Serial.println("Setup ESP32 to sleep for every " + String(TIME_TO_SLEEP) + " Seconds");
+  esp_sleep_enable_ext0_wakeup(GPIO_NUM_2, 0);
+  // Serial.println("Setup ESP32 to sleep for every " + String(TIME_TO_SLEEP) + " Seconds");
 
   Serial.println("Going to sleep now");
   Serial.flush();
   // WiFi.disconnect(true);
   // WiFi.mode(WIFI_OFF);
 
-  esp_light_sleep_start();
+  esp_deep_sleep_start();
   Serial.println("WiFi turning on!");
   // WiFi.begin(ssid, pass);
   // Serial.println("WiFi turned on!");
@@ -303,6 +333,7 @@ void loop() {
     // save sensor data
     // IMU: 30Hz, Alt: 10 Hz, RH: 10s, T: 10s
     if(millis()>timestamp[0]){
+      digitalWrite(17, HIGH);
       timestamp[0]+=dt[0];
       if(idx[0]==2){
         Serial.println(timestamp[0]);
@@ -328,9 +359,12 @@ void loop() {
         MQTTclient.publish((topic_base+"/acc").c_str(), (const char*)acc,LEN_ACCSMPL*3);
         idx[0]=2;
       }
+
+      digitalWrite(17, LOW);
     }     
 
     if(millis()>timestamp[1]){
+      digitalWrite(17, HIGH);
       //sensor data sampling
       timestamp[1]+=dt[1];
       if(idx[1]==0){
@@ -359,10 +393,12 @@ void loop() {
           Serial.println(rxbuf);
         }
       }
+      digitalWrite(17, LOW);
     }
 
 
     if(millis()>timestamp[2]){
+      digitalWrite(17, HIGH);
       //sensor data sampling
       timestamp[2]+=dt[2];
       if(idx[2]==0){
@@ -384,6 +420,7 @@ void loop() {
         Serial.println("trh tx!");
         MQTTclient.publish((topic_base+"/trh").c_str(), (const char*)trh,LEN_TRHSMPL*4+6);
       }
+      digitalWrite(17, LOW);
     }
 
   }else{
@@ -512,5 +549,5 @@ void loop() {
 
   
 
-  // light_sleep_purpet();/
+  // deep_sleep_perpet();/
 }
