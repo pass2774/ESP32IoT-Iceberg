@@ -26,7 +26,7 @@ EEPROMClass  SENSOR_ACC("sensor_acc");
 //char* ssid = "Compass";
 //char* password = "iepstt92";
 String dev_name = "exampleDev";
-String serial_number = "SN000-000-0000";
+String serial_number = "SN000-DEV-0000";
 String server_addr = "192.168.0.3";
 uint16_t server_port = 3000;
 String AP_id = "JoonhwaHotSpot";

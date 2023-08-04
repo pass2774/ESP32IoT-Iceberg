@@ -21,7 +21,7 @@ AccelData accelData;    //Sensor data
 GyroData gyroData;
 
 
-void setSensorAlt(){
+void setSensorPRS(){
   if (dps.begin_I2C()) {
     Serial.println("DPS OK!");
     // Setup highest precision
@@ -35,7 +35,7 @@ void setSensorAlt(){
     // while (1) yield();
   }
 }
-void setSensorRH(){
+void setSensorTRH(){
   //sht4x RH sensor initialization
   Serial.println("Adafruit SHT4x test");
   if (sht4.begin()) {
@@ -89,62 +89,64 @@ void setSensorRH(){
 }
 
 
-float getSensorPressure(){
+// float getSensorPressure(int8_t* dst_arr){
+void getSensorPressure(int8_t* dst_arr){
   sensors_event_t temp_event, pressure_event;
   if (dps.pressureAvailable()) {
     dps_pressure->getEvent(&pressure_event);
-    Serial.print(pressure_event.pressure);
+    Serial.print("prs:");
+    Serial.println(pressure_event.pressure);
   }
-  return pressure_event.pressure;
-  // return (float)12.345f;
+  memcpy(dst_arr,&pressure_event.pressure,sizeof(float));
+  return;
 }
 
-void getSensorDataAlt(){
-  sensors_event_t temp_event, pressure_event;
-  if (dps.temperatureAvailable()) {
-    dps_temp->getEvent(&temp_event);
-    Serial.print(F("Temperature = "));
-    Serial.print(temp_event.temperature);
-    Serial.println(" *C");
-  }
-  // Reading pressure also reads temp so don't check pressure
-  // before temp!
-  if (dps.pressureAvailable()) {
-    dps_pressure->getEvent(&pressure_event);
-    Serial.print(F("Pressure = "));
-    Serial.print(pressure_event.pressure);
-    Serial.println(" hPa"); 
-  }
-}
+// void getSensorDataAlt(){
+//   sensors_event_t temp_event, pressure_event;
+//   if (dps.temperatureAvailable()) {
+//     dps_temp->getEvent(&temp_event);
+//     Serial.print(F("Temperature = "));
+//     Serial.print(temp_event.temperature);
+//     Serial.println(" *C");
+//   }
+//   // Reading pressure also reads temp so don't check pressure
+//   // before temp!
+//   if (dps.pressureAvailable()) {
+//     dps_pressure->getEvent(&pressure_event);
+//     Serial.print(F("Pressure = "));
+//     Serial.print(pressure_event.pressure);
+//     Serial.println(" hPa"); 
+//   }
+// }
 
-void getSensorDataRH(){
-  sensors_event_t humidity, temp;
-  uint32_t timestamp = millis();
-  timestamp = millis() - timestamp;
-  sht4.getEvent(&humidity, &temp);// populate temp and humidity objects with fresh data
+// void getSensorDataRH(){
+//   sensors_event_t humidity, temp;
+//   uint32_t timestamp = millis();
+//   timestamp = millis() - timestamp;
+//   sht4.getEvent(&humidity, &temp);// populate temp and humidity objects with fresh data
 
-  Serial.print("Temperature: "); Serial.print(temp.temperature); Serial.println(" degrees C");
-  Serial.print("Humidity: "); Serial.print(humidity.relative_humidity); Serial.println("% rH");
-  Serial.print("Read duration (ms): ");
-  Serial.println(timestamp);
-}
+//   Serial.print("Temperature: "); Serial.print(temp.temperature); Serial.println(" degrees C");
+//   Serial.print("Humidity: "); Serial.print(humidity.relative_humidity); Serial.println("% rH");
+//   Serial.print("Read duration (ms): ");
+//   Serial.println(timestamp);
+// }
 
 void getSensorDataTRH(int8_t* dst_arr){
-  // sensors_event_t humidity, temp;
+  sensors_event_t humidity, temp;
   // uint32_t timestamp = millis();
+  sht4.getEvent(&humidity, &temp);// populate temp and humidity objects with fresh data
   // timestamp = millis() - timestamp;
-  // sht4.getEvent(&humidity, &temp);// populate temp and humidity objects with fresh data
-
   // Serial.print("Temperature: "); Serial.print(temp.temperature); Serial.println(" degrees C");
   // Serial.print("Humidity: "); Serial.print(humidity.relative_humidity); Serial.println("% rH");
   // Serial.print("Read duration (ms): ");
   // Serial.println(timestamp);
 
-  int16_t buf[3] = {
-    (int16_t)(20*10),
-    (int16_t)(20*20),
+  int16_t buf[2] = {
+    (int16_t)(temp.temperature*100.0f),
+    (int16_t)(humidity.relative_humidity*100.0f),
   };
-  memcpy(dst_arr,buf,3);
+  memcpy(dst_arr,buf,4);
+  return;
 }
 
 void setSensorIMU(){
@@ -172,14 +174,14 @@ void setSensorIMU(){
 void getSensorDataIMU(int8_t* dst_arr){
   IMU.update();
   IMU.getAccel(&accelData);
-  Serial.println("imu:");
-  Serial.print(accelData.accelX);
-  Serial.print("\t");
-  Serial.print(accelData.accelY);
-  Serial.print("\t");
-  Serial.print(accelData.accelZ);
-  Serial.print("\t");
-  Serial.println(IMU.getTemp());
+  // Serial.println("imu:");
+  // Serial.print(accelData.accelX);
+  // Serial.print("\t");
+  // Serial.print(accelData.accelY);
+  // Serial.print("\t");
+  // Serial.print(accelData.accelZ);
+  // Serial.print("\t");
+  // Serial.println(IMU.getTemp());
 
   int8_t buf[3] = {
     (int8_t)(20*accelData.accelX),

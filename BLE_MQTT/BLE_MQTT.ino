@@ -66,7 +66,7 @@ unsigned long lastMillis = 0;
 #define LEN_ACCSMPL 30
 #define LEN_PRSSMPL 20
 #define LEN_TRHSMPL 20
-int8_t acc[LEN_ACCSMPL+2][3];
+int8_t acc[LEN_ACCSMPL*3+6];
 int8_t prs[LEN_PRSSMPL*4+6];
 int8_t trh[LEN_TRHSMPL*4+6];
 
@@ -89,8 +89,6 @@ void connect() {
   Serial.println("\nconnected!");
 
   // MQTTclient.subscribe(topic_base+"/acc");
-  // MQTTclient.subscribe(topic_base+"/prs");
-  // MQTTclient.subscribe(topic_base+"/trh");
   MQTTclient.subscribe((topic_base+"/CMD").c_str());
   // client.unsubscribe("/hello");
 }
@@ -206,20 +204,30 @@ void setup() {
 
   connect();
 
-  Serial.println("DPS310");
-  if (! dps.begin_I2C()) {             // Can pass in I2C address here
-  //if (! dps.begin_SPI(DPS310_CS)) {  // If you want to use SPI
-    Serial.println("Failed to find DPS");
-    while (1) yield();
-  }
-  Serial.println("DPS OK!");
+  // Serial.println("DPS310");
+  // if (! dps.begin_I2C()) {             // Can pass in I2C address here
+  // //if (! dps.begin_SPI(DPS310_CS)) {  // If you want to use SPI
+  //   Serial.println("Failed to find DPS");
+  //   while (1) yield();
+  // }
+  // Serial.println("DPS OK!");
+  // dps.configurePressure(DPS310_64HZ, DPS310_64SAMPLES);
+  // dps.configureTemperature(DPS310_64HZ, DPS310_64SAMPLES);
 
-  dps.configurePressure(DPS310_64HZ, DPS310_64SAMPLES);
-  dps.configureTemperature(DPS310_64HZ, DPS310_64SAMPLES);
-
+  setSensorPRS();
 
   setSensorIMU();
-  
+  setSensorTRH();
+  // Define Dataformat
+  // acc[0][0]=0xA0;
+  // acc[0][1]=LEN_ACCSMPL;
+  acc[0]=0xA0;
+  acc[1]=LEN_ACCSMPL;
+  prs[0]=0xA1;
+  prs[1]=LEN_PRSSMPL;
+  trh[0]=0xA2;
+  trh[1]=LEN_PRSSMPL;
+
   // light_sleep_purpet();
 }
 
@@ -246,10 +254,11 @@ void light_sleep_purpet(){
   Serial.println("WiFi turning on!");
   // WiFi.begin(ssid, pass);
   // Serial.println("WiFi turned on!");
+
 }
 
 uint32_t timestamp[3] = {10000,10000,10000};
-uint32_t dt[3]={200,200,200};
+uint32_t dt[3]={33,50,1000};
 int8_t idx[3]={0,0,0};
 uint16_t iter=0;
 
@@ -303,82 +312,67 @@ void loop() {
     // save sensor data
     // IMU: 30Hz, Alt: 10 Hz, RH: 10s, T: 10s
     if(millis()>timestamp[0]){
-      timestamp[0]+=dt[0];
-      if(idx[0]==2){
-        Serial.println(timestamp[0]);
-        memcpy(acc,&timestamp[0],sizeof(uint32_t));
-        acc[1][1]=0;
-        acc[1][2]=LEN_ACCSMPL;
-        iter++;
+      if(idx[0]==0){
+        Serial.println("timestamp[0]="+String(timestamp[0]));
+        memcpy(&acc[2],&timestamp[0],sizeof(uint32_t));
       }
-      getSensorDataIMU(acc[idx[0]]);
-      Serial.println("arr:");
-      Serial.print(acc[idx[0]][0]);
-      Serial.print("\t");
-      Serial.print(acc[idx[0]][1]);
-      Serial.print("\t");
-      Serial.print(acc[idx[0]][2]);
-      Serial.print("\t");
-      Serial.println();
-
+      timestamp[0]+=dt[0];
+      getSensorDataIMU(acc+3*idx[0]+6);
+      // Serial.println("acc:");
+      // Serial.print(acc[3*idx[0]+6]);
+      // Serial.print("\t");
+      // Serial.print(acc[3*idx[0]+7]);
+      // Serial.print("\t");
+      // Serial.print(acc[3*idx[0]+8]);
+      // Serial.println();
 
       idx[0]++;
       if(idx[0]==LEN_ACCSMPL){
         Serial.println("acc tx!");
-        MQTTclient.publish((topic_base+"/acc").c_str(), (const char*)acc,LEN_ACCSMPL*3);
-        idx[0]=2;
+        uint32_t dum =0;
+        memcpy(&dum,&acc[2],sizeof(uint32_t));
+        Serial.println("dum:"+String(dum));
+        MQTTclient.publish((topic_base+"/acc").c_str(), (const char*)acc,LEN_ACCSMPL*3+6);
+        idx[0]=0;
       }
     }     
 
     if(millis()>timestamp[1]){
-      //sensor data sampling
-      timestamp[1]+=dt[1];
       if(idx[1]==0){
-        Serial.println(timestamp[1]);
-        memcpy(prs,&timestamp[1],sizeof(uint32_t));
-        prs[4]=0;
-        prs[5]=LEN_PRSSMPL;
+        Serial.println("timestamp[1]="+String(timestamp[1]));
+        memcpy(&prs[2],&timestamp[1],sizeof(uint32_t));
       }
-      float sensor_data=getSensorPressure();
-      Serial.print("idx[1]:");
-      Serial.print(idx[1]);
-      Serial.print("--");
-      Serial.println(sensor_data);
-      memcpy(prs+4*idx[1]+6,&sensor_data,sizeof(float));
+      timestamp[1]+=dt[1];
+      getSensorPressure(prs+4*idx[1]+6);
       idx[1]++;
       if(idx[1]==LEN_PRSSMPL){
         idx[1]=0;
         Serial.println("prs tx!");
         MQTTclient.publish((topic_base+"/prs").c_str(), (const char*)prs,LEN_PRSSMPL*4+6);
-        for(int i = 0;i<LEN_PRSSMPL;i++){
-          Serial.print(i);
-          Serial.print(":");
-          float rxbuf;
-          memcpy(&rxbuf,prs+4*i+6,sizeof(float));
-          // (float)((((int32_t)prs[4*i+6])<<24)|(((int32_t)prs[4*i+7])<<16)|(((int32_t)prs[4*i+8])<<8)|(((int32_t)prs[4*i+9])<<0));
-          Serial.println(rxbuf);
-        }
+        // for(int i = 0;i<LEN_PRSSMPL;i++){
+        //   Serial.print(i);
+        //   Serial.print(":");
+        //   float rxbuf;
+        //   memcpy(&rxbuf,prs+4*i+6,sizeof(float));
+        //   Serial.println(rxbuf);
+        // }
       }
     }
 
 
     if(millis()>timestamp[2]){
-      //sensor data sampling
-      timestamp[2]+=dt[2];
       if(idx[2]==0){
-        Serial.println("timestamp[2]=");
-        Serial.println(timestamp[2]);
-        memcpy(trh,&timestamp[2],sizeof(uint32_t));
-
-        trh[4]=0;
-        trh[5]=LEN_PRSSMPL;
+        Serial.println("timestamp[2]="+String(timestamp[2]));
+        memcpy(&trh[2],&timestamp[2],sizeof(uint32_t));
       }
+      timestamp[2]+=dt[2];
       getSensorDataTRH(trh+4*idx[2]+6);
+      // int16_t t_data, rh_data;
+      // memcpy(&t_data,trh+4*idx[1]+6,2);
+      // memcpy(&rh_data,trh+4*idx[1]+8,2);
+      // Serial.print("trh["+String(idx[1])+"]:");
+      // Serial.println(String(t_data)+","+String(rh_data));
       idx[2]++;
-      uint32_t timeTemp;
-      memcpy(&timeTemp,trh,sizeof(uint32_t));
-      Serial.print("timeTemp=");
-      Serial.println(timeTemp);
       if(idx[2]==LEN_TRHSMPL){
         idx[2]=0;
         Serial.println("trh tx!");
@@ -389,7 +383,6 @@ void loop() {
   }else{
     Serial.println("owner:non-active");
     if(bPetActive==true){
-      
       Serial.println("pet:active");
       WiFi.disconnect();
       WiFi.mode(WIFI_OFF);
@@ -406,36 +399,25 @@ void loop() {
         // IMU: 30Hz, Alt: 10 Hz, RH: 10s, T: 10s
         if(millis()>timestamp[0]){
           timestamp[0]+=dt[0];
-          if(idx[0]==2){
+          if(idx[0]==0){
             Serial.println(timestamp[0]);
-            acc[0][0]=(int8_t)(timestamp[0]>>24);
-            acc[0][1]=(int8_t)(timestamp[0]>>16);
-            acc[0][2]=(int8_t)(timestamp[0]>>8);
-            acc[1][0]=(int8_t)(timestamp[0]);
-            acc[1][1]=0;
-            acc[1][2]=LEN_ACCSMPL;
+            // acc[0][0]=(int8_t)(timestamp[0]>>24);
+            // acc[0][1]=(int8_t)(timestamp[0]>>16);
+            // acc[0][2]=(int8_t)(timestamp[0]>>8);
+            // acc[1][0]=(int8_t)(timestamp[0]);
+            // acc[1][1]=0;
+            // acc[1][2]=LEN_ACCSMPL;
 
-            // acc[0][0]=1;
-            // acc[0][1]=2;
-            // acc[0][2]=3;
-            // acc[1][0]=4;
-            // acc[1][1]=5;
-            // acc[1][2]=6;
-
-            // acc[0][0]=30;
-            // acc[0][1]=(int8_t)(iter>>8);
-            // acc[0][2]=(int8_t)iter;
-            // Serial.println(iter);
             iter++;
           }
-          getSensorDataIMU(acc[idx[0]]);
+          // getSensorDataIMU(acc[idx[0]]);
           // acc[idx[0]][0]=(int8_t)(idx[0]+1);
           // acc[idx[0]][1]=(int8_t)(idx[0]+1);
           // acc[idx[0]][2]=-(int8_t)(idx[0]+1);
           idx[0]++;
-          if(idx[0]==LEN_ACCSMPL+2){
+          if(idx[0]==LEN_ACCSMPL){
             appendFileBytes(SPIFFS, path, (uint8_t*)acc, LEN_ACCSMPL*3+6);
-            idx[0]=2;
+            idx[0]=0;
           }
         } 
 
