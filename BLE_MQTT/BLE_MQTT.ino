@@ -222,17 +222,6 @@ void setup() {
 
   connect();
 
-<<<<<<< HEAD
-  // Serial.println("DPS310");
-  // if (! dps.begin_I2C()) {             // Can pass in I2C address here
-  // //if (! dps.begin_SPI(DPS310_CS)) {  // If you want to use SPI
-  //   Serial.println("Failed to find DPS");
-  //   while (1) yield();
-  // }
-  // Serial.println("DPS OK!");
-  // dps.configurePressure(DPS310_64HZ, DPS310_64SAMPLES);
-  // dps.configureTemperature(DPS310_64HZ, DPS310_64SAMPLES);
-=======
   digitalWrite(16, HIGH);
   delay(500);
   digitalWrite(17, HIGH);
@@ -251,12 +240,10 @@ void setup() {
 
   dps.configurePressure(DPS310_64HZ, DPS310_64SAMPLES);
   dps.configureTemperature(DPS310_64HZ, DPS310_64SAMPLES);
->>>>>>> 56463ff7fe450ff1f888f8de9e3a4c2759d91d64
 
   setSensorPRS();
 
   setSensorIMU();
-<<<<<<< HEAD
   setSensorTRH();
   // Define Dataformat
   // acc[0][0]=0xA0;
@@ -269,14 +256,12 @@ void setup() {
   trh[1]=LEN_PRSSMPL;
 
   // light_sleep_purpet();
-=======
   
   // deep_sleep_perpet();
   attachInterrupt(digitalPinToInterrupt(2), intSLP, HIGH);
 
   digitalWrite(16, HIGH);
   digitalWrite(18, HIGH);
->>>>>>> 56463ff7fe450ff1f888f8de9e3a4c2759d91d64
 }
 
 void deep_sleep_perpet(){
@@ -360,20 +345,9 @@ void loop() {
     // save sensor data
     // IMU: 30Hz, Alt: 10 Hz, RH: 10s, T: 10s
     if(millis()>timestamp[0]){
-<<<<<<< HEAD
       if(idx[0]==0){
         Serial.println("timestamp[0]="+String(timestamp[0]));
         memcpy(&acc[2],&timestamp[0],sizeof(uint32_t));
-=======
-      digitalWrite(17, HIGH);
-      timestamp[0]+=dt[0];
-      if(idx[0]==2){
-        Serial.println(timestamp[0]);
-        memcpy(acc,&timestamp[0],sizeof(uint32_t));
-        acc[1][1]=0;
-        acc[1][2]=LEN_ACCSMPL;
-        iter++;
->>>>>>> 56463ff7fe450ff1f888f8de9e3a4c2759d91d64
       }
       timestamp[0]+=dt[0];
       getSensorDataIMU(acc+3*idx[0]+6);
@@ -399,12 +373,6 @@ void loop() {
     }     
 
     if(millis()>timestamp[1]){
-<<<<<<< HEAD
-=======
-      digitalWrite(17, HIGH);
-      //sensor data sampling
-      timestamp[1]+=dt[1];
->>>>>>> 56463ff7fe450ff1f888f8de9e3a4c2759d91d64
       if(idx[1]==0){
         Serial.println("timestamp[1]="+String(timestamp[1]));
         memcpy(&prs[2],&timestamp[1],sizeof(uint32_t));
@@ -429,12 +397,6 @@ void loop() {
 
 
     if(millis()>timestamp[2]){
-<<<<<<< HEAD
-=======
-      digitalWrite(17, HIGH);
-      //sensor data sampling
-      timestamp[2]+=dt[2];
->>>>>>> 56463ff7fe450ff1f888f8de9e3a4c2759d91d64
       if(idx[2]==0){
         Serial.println("timestamp[2]="+String(timestamp[2]));
         memcpy(&trh[2],&timestamp[2],sizeof(uint32_t));
