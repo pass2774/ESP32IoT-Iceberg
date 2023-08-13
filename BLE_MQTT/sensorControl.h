@@ -7,13 +7,13 @@ Adafruit_SHT4x sht4 = Adafruit_SHT4x();
 
 // dps310 atmospheric pressure sensor
 Adafruit_DPS310 dps;
-Adafruit_Sensor *dps_temp = dps.getTemperatureSensor();
-Adafruit_Sensor *dps_pressure = dps.getPressureSensor();
+Adafruit_Sensor* dps_temp = dps.getTemperatureSensor();
+Adafruit_Sensor* dps_pressure = dps.getPressureSensor();
 
 // icm-20689 6-axis imu sensor
-#define IMU_ADDRESS 0x68    //Change to the address of the IMU
-#define PERFORM_CALIBRATION //Comment to disable startup calibration
-ICM20689 IMU;               //Change to the name of any supported IMU! 
+#define IMU_ADDRESS 0x68     //Change to the address of the IMU
+#define PERFORM_CALIBRATION  //Comment to disable startup calibration
+ICM20689 IMU;                //Change to the name of any supported IMU!
 
 // Currently supported IMUS: MPU9255 MPU9250 MPU6500 MPU6050 ICM20689 ICM20690 BMI055 BMX055 BMI160 LSM6DS3 LSM6DSL
 calData calib = { 0 };  //Calibration data
@@ -21,7 +21,7 @@ AccelData accelData;    //Sensor data
 GyroData gyroData;
 
 
-void setSensorPRS(){
+void setSensorPRS() {
   if (dps.begin_I2C()) {
     Serial.println("DPS OK!");
     // Setup highest precision
@@ -30,12 +30,19 @@ void setSensorPRS(){
 
     dps_temp->printSensorDetails();
     dps_pressure->printSensorDetails();
-  }else{
+  } else {
     Serial.println("Failed to find DPS");
     // while (1) yield();
+    for (int i = 0; i < 10; i++) {
+      digitalWrite(16, HIGH);
+      digitalWrite(17, HIGH);
+      delay(1000);
+      digitalWrite(16, LOW);
+      digitalWrite(17, LOW);
+    }
   }
 }
-void setSensorTRH(){
+void setSensorTRH() {
   //sht4x RH sensor initialization
   Serial.println("Adafruit SHT4x test");
   if (sht4.begin()) {
@@ -45,13 +52,13 @@ void setSensorTRH(){
     // You can have 3 different precisions, higher precision takes longer
     sht4.setPrecision(SHT4X_HIGH_PRECISION);
     switch (sht4.getPrecision()) {
-      case SHT4X_HIGH_PRECISION: 
+      case SHT4X_HIGH_PRECISION:
         Serial.println("High precision");
         break;
-      case SHT4X_MED_PRECISION: 
+      case SHT4X_MED_PRECISION:
         Serial.println("Med precision");
         break;
-      case SHT4X_LOW_PRECISION: 
+      case SHT4X_LOW_PRECISION:
         Serial.println("Low precision");
         break;
     }
@@ -60,44 +67,52 @@ void setSensorTRH(){
     // and reads will take longer too!
     sht4.setHeater(SHT4X_NO_HEATER);
     switch (sht4.getHeater()) {
-      case SHT4X_NO_HEATER: 
+      case SHT4X_NO_HEATER:
         Serial.println("No heater");
         break;
-      case SHT4X_HIGH_HEATER_1S: 
+      case SHT4X_HIGH_HEATER_1S:
         Serial.println("High heat for 1 second");
         break;
-      case SHT4X_HIGH_HEATER_100MS: 
+      case SHT4X_HIGH_HEATER_100MS:
         Serial.println("High heat for 0.1 second");
         break;
-      case SHT4X_MED_HEATER_1S: 
+      case SHT4X_MED_HEATER_1S:
         Serial.println("Medium heat for 1 second");
         break;
-      case SHT4X_MED_HEATER_100MS: 
+      case SHT4X_MED_HEATER_100MS:
         Serial.println("Medium heat for 0.1 second");
         break;
-      case SHT4X_LOW_HEATER_1S: 
+      case SHT4X_LOW_HEATER_1S:
         Serial.println("Low heat for 1 second");
         break;
-      case SHT4X_LOW_HEATER_100MS: 
+      case SHT4X_LOW_HEATER_100MS:
         Serial.println("Low heat for 0.1 second");
         break;
     }
-  }else{
+  } else {
     Serial.println("Couldn't find SHT4x");
     // while (1) delay(1);
+    for (int i = 0; i < 10; i++) {
+      digitalWrite(16, HIGH);
+      digitalWrite(17, HIGH);
+      delay(500);
+      digitalWrite(16, LOW);
+      digitalWrite(17, LOW);
+      delay(500);
+    }
   }
 }
 
 
 // float getSensorPressure(int8_t* dst_arr){
-void getSensorPressure(int8_t* dst_arr){
+void getSensorPressure(int8_t* dst_arr) {
   sensors_event_t temp_event, pressure_event;
   if (dps.pressureAvailable()) {
     dps_pressure->getEvent(&pressure_event);
     Serial.print("prs:");
     Serial.println(pressure_event.pressure);
   }
-  memcpy(dst_arr,&pressure_event.pressure,sizeof(float));
+  memcpy(dst_arr, &pressure_event.pressure, sizeof(float));
   return;
 }
 
@@ -115,7 +130,7 @@ void getSensorPressure(int8_t* dst_arr){
 //     dps_pressure->getEvent(&pressure_event);
 //     Serial.print(F("Pressure = "));
 //     Serial.print(pressure_event.pressure);
-//     Serial.println(" hPa"); 
+//     Serial.println(" hPa");
 //   }
 // }
 
@@ -131,10 +146,10 @@ void getSensorPressure(int8_t* dst_arr){
 //   Serial.println(timestamp);
 // }
 
-void getSensorDataTRH(int8_t* dst_arr){
+void getSensorDataTRH(int8_t* dst_arr) {
   sensors_event_t humidity, temp;
   // uint32_t timestamp = millis();
-  sht4.getEvent(&humidity, &temp);// populate temp and humidity objects with fresh data
+  sht4.getEvent(&humidity, &temp);  // populate temp and humidity objects with fresh data
   // timestamp = millis() - timestamp;
   // Serial.print("Temperature: "); Serial.print(temp.temperature); Serial.println(" degrees C");
   // Serial.print("Humidity: "); Serial.print(humidity.relative_humidity); Serial.println("% rH");
@@ -142,36 +157,52 @@ void getSensorDataTRH(int8_t* dst_arr){
   // Serial.println(timestamp);
 
   int16_t buf[2] = {
-    (int16_t)(temp.temperature*100.0f),
-    (int16_t)(humidity.relative_humidity*100.0f),
+    (int16_t)(temp.temperature * 100.0f),
+    (int16_t)(humidity.relative_humidity * 100.0f),
   };
-  memcpy(dst_arr,buf,4);
+  memcpy(dst_arr, buf, 4);
   return;
 }
 
-void setSensorIMU(){
-    int err = IMU.init(calib, IMU_ADDRESS);
+void setSensorIMU() {
+  int err = IMU.init(calib, IMU_ADDRESS);
   if (err != 0) {
     Serial.print("Error initializing IMU: ");
     Serial.println(err);
-    while (true) {
-      ;
+    // while (true) {
+    //   ;
+    // }
+    for (int i = 0; i < 10; i++) {
+      digitalWrite(16, HIGH);
+      digitalWrite(17, HIGH);
+      delay(500);
+      digitalWrite(16, LOW);
+      digitalWrite(17, LOW);
+      delay(500);
     }
   }
-  
+
   //err = IMU.setGyroRange(500);      //USE THESE TO SET THE RANGE, IF AN INVALID RANGE IS SET IT WILL RETURN -1
   //err = IMU.setAccelRange(2);       //THESE TWO SET THE GYRO RANGE TO ±500 DPS AND THE ACCELEROMETER RANGE TO ±2g
-  
+
   if (err != 0) {
     Serial.print("Error Setting range: ");
     Serial.println(err);
-    while (true) {
-      ;
+    // while (true) {
+    //   ;
+    // }
+    for (int i = 0; i < 10; i++) {
+      digitalWrite(16, HIGH);
+      digitalWrite(17, HIGH);
+      delay(500);
+      digitalWrite(16, LOW);
+      digitalWrite(17, LOW);
+      delay(500);
     }
   }
 }
 
-void getSensorDataIMU(int8_t* dst_arr){
+void getSensorDataIMU(int8_t* dst_arr) {
   IMU.update();
   IMU.getAccel(&accelData);
   // Serial.println("imu:");
@@ -184,11 +215,11 @@ void getSensorDataIMU(int8_t* dst_arr){
   // Serial.println(IMU.getTemp());
 
   int8_t buf[3] = {
-    (int8_t)(20*accelData.accelX),
-    (int8_t)(20*accelData.accelY),
-    (int8_t)(20*accelData.accelZ)
+    (int8_t)(20 * accelData.accelX),
+    (int8_t)(20 * accelData.accelY),
+    (int8_t)(20 * accelData.accelZ)
   };
-  memcpy(dst_arr,buf,3);
+  memcpy(dst_arr, buf, 3);
 
   return;
 }
