@@ -66,10 +66,39 @@ void deep_sleep_perpet() {
   // Serial.println("WiFi turned on!");
 }
 
+void light_sleep_perpet_motionINT() {
+  esp_sleep_enable_ext0_wakeup(GPIO_NUM_32, 1);
+
+  digitalWrite(16, HIGH);
+  delay(1000);
+  digitalWrite(16, LOW);
+  delay(1000);
+  digitalWrite(16, HIGH);
+  delay(1000);
+  digitalWrite(16, LOW);
+  delay(1000);
+  digitalWrite(17, HIGH);
+  delay(1000);
+  digitalWrite(17, LOW);
+  delay(1000);
+  digitalWrite(17, HIGH);
+  delay(1000);
+  digitalWrite(17, LOW);
+  delay(1000);
+
+  Serial.println("Going to light sleep");
+  Serial.flush();
+
+  // esp_light_sleep_start();
+}
+
 void IRAM_ATTR intSLP() {
   deep_sleep_perpet();
 }
 
+void IRAM_ATTR MotionINT() {
+  light_sleep_perpet_motionINT();
+}
 
 /***********************************************************************
   Adafruit MQTT Library ESP32 Adafruit IO SSL/TLS example
@@ -194,6 +223,7 @@ const char* path = "/acc.txt";
 void setup() {
   Serial.begin(230400);
   pinMode(25, INPUT_PULLUP);
+  pinMode(32, INPUT);
   pinMode(16, OUTPUT);
   pinMode(17, OUTPUT);
   pinMode(18, OUTPUT);
@@ -264,6 +294,7 @@ void setup() {
   digitalWrite(17, LOW);
 
   attachInterrupt(digitalPinToInterrupt(25), intSLP, HIGH);
+  // attachInterrupt(digitalPinToInterrupt(32), MotionINT, FALLING);
 
   // SPIFFS setup
   if (!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)) {
@@ -371,16 +402,16 @@ void loop() {
   int analogVolts = 2 * analogReadMilliVolts(34);
   Serial.printf("ADC millivolts value = %d\n", analogVolts);
 
-  if (analogVolts < 3350) {
-    Serial.println("Low Voltage Alert!");
-    digitalWrite(16, HIGH);
-    digitalWrite(17, HIGH);
-  } else if (analogVolts < 3300) {
-    digitalWrite(16, LOW);
-    digitalWrite(17, LOW);
-    deep_sleep_perpet();
-  } else {
-  }
+  // if (analogVolts < 3350) {
+  //   Serial.println("Low Voltage Alert!");
+  //   digitalWrite(16, HIGH);
+  //   digitalWrite(17, HIGH);
+  // } else if (analogVolts < 3300) {
+  //   digitalWrite(16, LOW);
+  //   digitalWrite(17, LOW);
+  //   deep_sleep_perpet();
+  // } else {
+  // }
 
 
   // BLE Control
@@ -505,41 +536,37 @@ void loop() {
       WiFi.disconnect();
       WiFi.mode(WIFI_OFF);
       delay(10);
-      setCpuFrequencyMhz(20);  //No BT/Wifi: 10,20,40 MHz, for BT/Wifi, 80,160,240MHz
-      delay(10);
+      // setCpuFrequencyMhz(20);  //No BT/Wifi: 10,20,40 MHz, for BT/Wifi, 80,160,240MHz
+      // delay(10);
       Serial.println("appending data");
 
       uint32_t timestamp_dive = millis();
-      idx[0] = 2;
-      timestamp[0] = millis();  //check it later
+      idx[0] = 0;
+      // timestamp[0] = millis();  //check it later
       while (true) {
         //logging sensor data
         // IMU: 30Hz, Alt: 10 Hz, RH: 10s, T: 10s
-        if (millis() > timestamp[0]) {
-          timestamp[0] += dt[0];
-          if (idx[0] == 0) {
-            Serial.println(timestamp[0]);
-            // acc[0][0]=(int8_t)(timestamp[0]>>24);
-            // acc[0][1]=(int8_t)(timestamp[0]>>16);
-            // acc[0][2]=(int8_t)(timestamp[0]>>8);
-            // acc[1][0]=(int8_t)(timestamp[0]);
-            // acc[1][1]=0;
-            // acc[1][2]=LEN_ACCSMPL;
-
-            iter++;
-          }
-          // getSensorDataIMU(acc[idx[0]]);
-          // acc[idx[0]][0]=(int8_t)(idx[0]+1);
-          // acc[idx[0]][1]=(int8_t)(idx[0]+1);
-          // acc[idx[0]][2]=-(int8_t)(idx[0]+1);
-          idx[0]++;
-          if (idx[0] == LEN_ACCSMPL) {
-            appendFileBytes(SPIFFS, path, (uint8_t*)acc, LEN_ACCSMPL * 3 + 6);
-            idx[0] = 0;
-          }
+        // if (millis() > timestamp[0]) {
+        if (idx[0] == 0) {
+          timestamp[0] = millis();
+          Serial.println(timestamp[0]);
+          memcpy(&acc[2], &timestamp[0], sizeof(uint32_t));
         }
+        timestamp[0] += dt[0];
+        getSensorDataIMU(&acc[3 * idx[0] + 6]);
 
-        if (millis() - timestamp_dive > 5 * 1000) {
+        idx[0]++;
+        if (idx[0] == LEN_ACCSMPL) {
+          uint32_t dum = 0;
+          memcpy(&dum, &acc[2], sizeof(uint32_t));
+          Serial.println("dum:" + String(dum));
+          appendFileBytes(SPIFFS, path, (uint8_t*)acc, LEN_ACCSMPL * 3 + 6);
+          idx[0] = 0;
+          iter++;
+        }
+        // }
+
+        if (millis() - timestamp_dive > 120 * 1000) {
           break;
         }
       }
@@ -575,23 +602,35 @@ void loop() {
       uint8_t buffer[LEN_ACCSMPL * 3 + 6];
       // while(file.available()){
       if (file.available()) {
-        for (int i = 0; i < 2 * 60; i++) {
+        for (int i = 0; i < iter; i++) {
           file.seek(i * (LEN_ACCSMPL * 3 + 6));
           file.read(buffer, LEN_ACCSMPL * 3 + 6);
-          for (int i = 0; i < LEN_ACCSMPL * 3; i++) {
-            Serial.print(buffer[i]);
-            if (i % 3 == 2) {
-              Serial.println();
-            } else {
-              Serial.print(",");
-            }
+          // for (int i = 0; i < LEN_ACCSMPL * 3; i++) {
+          for (int j = 2; j < 6; j++) {
+            Serial.println(buffer[j]);
+            // if (i % 3 == 2) {
+            //   Serial.println();
+            // } else {
+            //   Serial.print(",");
+            // }
           }
-          Serial.println(i);
+          Serial.println("-----------------------");
+          // Serial.println(i);
           // MQTTclient.publish("perpet/SerialNumber/acc", (const char*)buffer,LEN_ACCSMPL*3+6);
           MQTTclient.publish((topic_base + "/acc").c_str(), (const char*)buffer, LEN_ACCSMPL * 3 + 6);
         }
+      } else {
+        Serial.println("File not available!");
+        delay(5000);
       }
+      iter = 0;
       file.close();
+
+      if (SPIFFS.remove("/acc.txt")) {
+        Serial.println("File '/acc.txt' deleted.");
+      } else {
+        Serial.println("Error deleting file '/acc.txt'.");
+      }
 
     } else {
       setCpuFrequencyMhz(20);  //No BT/Wifi: 10,20,40 MHz, for BT/Wifi, 80,160,240MHz
