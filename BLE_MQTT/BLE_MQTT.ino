@@ -229,6 +229,28 @@ void setup() {
   pinMode(18, OUTPUT);
   pinMode(34, INPUT);
 
+  digitalWrite(16, HIGH);
+  delay(500);
+  digitalWrite(17, HIGH);
+  delay(500);
+  digitalWrite(16, LOW);
+  delay(500);
+  digitalWrite(17, LOW);
+
+  setSensorPRS();
+  setSensorIMU();
+  setSensorTRH();
+  // Define Dataformat
+  // acc[0][0]=0xA0;
+  // acc[0][1]=LEN_ACCSMPL;
+  acc[0] = 0xA0;
+  acc[1] = LEN_ACCSMPL;
+  prs[0] = 0xA1;
+  prs[1] = LEN_PRSSMPL;
+  trh[0] = 0xA2;
+  trh[1] = LEN_PRSSMPL;
+
+
   // --------------------------OTA setup---------------------------
   // Serial.println("Booting");
   // WiFi.mode(WIFI_STA);
@@ -338,45 +360,15 @@ void setup() {
   }
 
   // MQTT setup
-  MQTTclient.begin("jayutest.best", net);
+  MQTTclient.begin(server_addr.c_str(),server_port, net);
   // MQTTclient.begin("172.30.1.19",8404, net);
   MQTTclient.onMessage(messageReceived);
   // MQTTclient.onMessageAdvanced(messageReceivedAdvanced);
 
   connect();
 
-  digitalWrite(16, HIGH);
-  delay(500);
-  digitalWrite(17, HIGH);
-  delay(500);
-  digitalWrite(16, LOW);
-  delay(500);
-  digitalWrite(17, LOW);
 
-  Serial.println("DPS310");
-  if (!dps.begin_I2C()) {  // Can pass in I2C address here
-                           //if (! dps.begin_SPI(DPS310_CS)) {  // If you want to use SPI
-    Serial.println("Failed to find DPS");
-    // while (1) yield();
-  }
-  Serial.println("DPS OK!");
 
-  dps.configurePressure(DPS310_64HZ, DPS310_64SAMPLES);
-  dps.configureTemperature(DPS310_64HZ, DPS310_64SAMPLES);
-
-  setSensorPRS();
-
-  setSensorIMU();
-  setSensorTRH();
-  // Define Dataformat
-  // acc[0][0]=0xA0;
-  // acc[0][1]=LEN_ACCSMPL;
-  acc[0] = 0xA0;
-  acc[1] = LEN_ACCSMPL;
-  prs[0] = 0xA1;
-  prs[1] = LEN_PRSSMPL;
-  trh[0] = 0xA2;
-  trh[1] = LEN_PRSSMPL;
 
   // light_sleep_purpet();
 
@@ -395,12 +387,13 @@ uint16_t iter = 0;
 
 bool bViewerActive = false;
 bool bPetActive = true;
+bool bTimerSet = false;
 
 void loop() {
   // ArduinoOTA.handle();
   // ESP.restart();
-  int analogVolts = 2 * analogReadMilliVolts(34);
-  Serial.printf("ADC millivolts value = %d\n", analogVolts);
+  // int analogVolts = 2 * analogReadMilliVolts(34);
+  // Serial.printf("ADC millivolts value = %d\n", analogVolts);
 
   // if (analogVolts < 3350) {
   //   Serial.println("Low Voltage Alert!");
@@ -447,9 +440,10 @@ void loop() {
 
   bViewerActive = true;
   if (bViewerActive == true) {
-    // setCpuFrequencyMhz(80); //No BT/Wifi: 10,20,40 MHz, for BT/Wifi, 80,160,240MHz
+    setCpuFrequencyMhz(80); //No BT/Wifi: 10,20,40 MHz, for BT/Wifi, 80,160,240MHz
     //function - sensing
-    if (false) {
+    if (!bTimerSet) {
+      bTimerSet=true;
       timestamp[0] = millis();
       timestamp[1] = millis();
       timestamp[2] = millis();
@@ -465,13 +459,13 @@ void loop() {
       }
       timestamp[0] += dt[0];
       getSensorDataIMU(acc + 3 * idx[0] + 6);
-      // Serial.println("acc:");
-      // Serial.print(acc[3*idx[0]+6]);
-      // Serial.print("\t");
-      // Serial.print(acc[3*idx[0]+7]);
-      // Serial.print("\t");
-      // Serial.print(acc[3*idx[0]+8]);
-      // Serial.println();
+      Serial.print("acc:");
+      Serial.print(acc[3*idx[0]+6]);
+      Serial.print("\t");
+      Serial.print(acc[3*idx[0]+7]);
+      Serial.print("\t");
+      Serial.print(acc[3*idx[0]+8]);
+      Serial.println();
 
       idx[0]++;
       if (idx[0] == LEN_ACCSMPL) {
@@ -479,7 +473,7 @@ void loop() {
         uint32_t dum = 0;
         memcpy(&dum, &acc[2], sizeof(uint32_t));
         Serial.println("dum:" + String(dum));
-        MQTTclient.publish((topic_base + "/acc").c_str(), (const char*)acc, LEN_ACCSMPL * 3 + 6);
+        // MQTTclient.publish((topic_base + "/acc").c_str(), (const char*)acc, LEN_ACCSMPL * 3 + 6);
         idx[0] = 0;
       }
     }
@@ -497,13 +491,13 @@ void loop() {
         idx[1] = 0;
         Serial.println("prs tx!");
         MQTTclient.publish((topic_base + "/prs").c_str(), (const char*)prs, LEN_PRSSMPL * 4 + 6);
-        // for(int i = 0;i<LEN_PRSSMPL;i++){
-        //   Serial.print(i);
-        //   Serial.print(":");
-        //   float rxbuf;
-        //   memcpy(&rxbuf,prs+4*i+6,sizeof(float));
-        //   Serial.println(rxbuf);
-        // }
+        for(int i = 0;i<LEN_PRSSMPL;i++){
+          Serial.print(i);
+          Serial.print(":");
+          float rxbuf;
+          memcpy(&rxbuf,prs+4*i+6,sizeof(float));
+          Serial.println(rxbuf);
+        }
       }
     }
 
@@ -515,7 +509,7 @@ void loop() {
         memcpy(&trh[2], &timestamp[2], sizeof(uint32_t));
       }
       timestamp[2] += dt[2];
-      getSensorDataTRH(trh + 4 * idx[2] + 6);
+      // getSensorDataTRH(trh + 4 * idx[2] + 6);
       // int16_t t_data, rh_data;
       // memcpy(&t_data,trh+4*idx[1]+6,2);
       // memcpy(&rh_data,trh+4*idx[1]+8,2);
@@ -645,10 +639,10 @@ void loop() {
     }
   }
 
-  if (analogVolts < 3300) {
-    digitalWrite(16, LOW);
-    digitalWrite(17, LOW);
-  }
+  // if (analogVolts < 3300) {
+  //   digitalWrite(16, LOW);
+  //   digitalWrite(17, LOW);
+  // }
 
 
   // deep_sleep_perpet();/

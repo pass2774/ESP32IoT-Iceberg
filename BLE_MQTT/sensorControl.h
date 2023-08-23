@@ -26,8 +26,8 @@ void setSensorPRS() {
   if (dps.begin_I2C()) {
     Serial.println("DPS OK!");
     // Setup highest precision
-    dps.configurePressure(DPS310_64HZ, DPS310_64SAMPLES);
-    dps.configureTemperature(DPS310_64HZ, DPS310_64SAMPLES);
+    dps.configurePressure(DPS310_64HZ, DPS310_16SAMPLES);
+    dps.configureTemperature(DPS310_64HZ, DPS310_16SAMPLES);
 
     dps_temp->printSensorDetails();
     dps_pressure->printSensorDetails();
