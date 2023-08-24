@@ -133,8 +133,8 @@ void eepromSetup_custom(){
   Serial.println(init_flag);
   Serial.println("--------");
 
-  if(init_flag!="EEPROM_INITIATED"){
-  // if(true){
+  // if(init_flag!="EEPROM_INITIATED"){
+  if(true){
   // Write: Variables ---> EEPROM stores
     DEV_NAME.writeString(0, dev_name);
     DEV_NAME.commit();

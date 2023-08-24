@@ -473,7 +473,7 @@ void loop() {
         uint32_t dum = 0;
         memcpy(&dum, &acc[2], sizeof(uint32_t));
         Serial.println("dum:" + String(dum));
-        // MQTTclient.publish((topic_base + "/acc").c_str(), (const char*)acc, LEN_ACCSMPL * 3 + 6);
+        MQTTclient.publish((topic_base + "/acc").c_str(), (const char*)acc, LEN_ACCSMPL * 3 + 6);
         idx[0] = 0;
       }
     }
@@ -509,7 +509,7 @@ void loop() {
         memcpy(&trh[2], &timestamp[2], sizeof(uint32_t));
       }
       timestamp[2] += dt[2];
-      // getSensorDataTRH(trh + 4 * idx[2] + 6);
+      getSensorDataTRH(trh + 4 * idx[2] + 6);
       // int16_t t_data, rh_data;
       // memcpy(&t_data,trh+4*idx[1]+6,2);
       // memcpy(&rh_data,trh+4*idx[1]+8,2);
