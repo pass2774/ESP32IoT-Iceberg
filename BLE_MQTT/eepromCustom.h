@@ -1,6 +1,12 @@
 #ifndef __SETTINGS__
 #define __SETTINGS__
 #include "EEPROM.h"
+
+#define OP_MODE_SETTING 0
+#define OP_MODE_BLE 1
+#define OP_MODE_WIFI 2
+#define OP_MODE_OTA 3
+
 //ESP32 by Espressif Systems Version 2.0.5. Other version may have different EEPROMClass methods
 
 // EEPROMClass  INIT_FLAG("INIT_FLAG", 0x40);
@@ -17,6 +23,8 @@ EEPROMClass  SERVER_PORT("server_port");
 EEPROMClass  AP_NAME("ap_id");
 EEPROMClass  AP_PASSWORD("ap_pw");
 EEPROMClass  MQTT_TOKEN("mqtt_token");
+EEPROMClass  OP_MODE("op_mode");
+
 EEPROMClass  SENSOR_PRS("sensor_prs");
 EEPROMClass  SENSOR_TEMP("sensor_temp");
 EEPROMClass  SENSOR_RH("sensor_rh");
@@ -35,6 +43,8 @@ int server_port = 1883;
 String AP_id = "JoonhwaHotSpot";
 String AP_pw = "iepstt2774";
 String topic_base = "perpet/"+serial_number;
+int op_mode =0;
+
 
 struct Sensor{
   String name;
@@ -116,8 +126,8 @@ bool init_eeprom(){
     delay(1000);
     ESP.restart();
   }
-  if (!SENSOR_ACC.begin(8*1024)) {
-    Serial.println("Failed to initialize EEPROM:SENSOR_ACC0");
+  if (!OP_MODE.begin(0x02)) {
+    Serial.println("Failed to initialize EEPROM:OP_MODE");
     Serial.println("Restarting...");
     delay(1000);
     ESP.restart();
@@ -148,6 +158,8 @@ void eepromSetup_custom(){
     AP_NAME.commit();
     AP_PASSWORD.writeString(0, AP_pw);
     AP_PASSWORD.commit();
+    OP_MODE.put(0, OP_MODE_SETTING);
+    OP_MODE.commit();
 
     INIT_FLAG.writeString(0, "EEPROM_INITIATED");
     INIT_FLAG.commit();
@@ -178,6 +190,7 @@ void eepromSetup_custom(){
   AP_id=String(buf_eeprom);
   AP_PASSWORD.get(0,buf_eeprom);
   AP_pw=String(buf_eeprom);
+  OP_MODE.get(0, op_mode);
 
   // setDevInfo();
   // setDevParams();

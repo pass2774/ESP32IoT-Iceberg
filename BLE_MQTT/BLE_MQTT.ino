@@ -8,6 +8,7 @@
 #include <ESPmDNS.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
+#include "buttonUI.h"
 
 #define uS_TO_S_FACTOR 1000000ULL /* Conversion factor for micro seconds to seconds */
 #define TIME_TO_SLEEP 5           /* Time ESP32 will go to sleep (in seconds) */
@@ -162,13 +163,6 @@ void connect() {
 }
 
 
-// void messageReceivedAdvanced(MQTTClient *client, char topic[], char bytes[], int length) {
-// String topic2 = topic;
-// String payload = bytes;
-// Serial.println("topic:"+topic2);
-// Serial.print("len:");
-// Serial.println(length);
-// c:computre/filename/filename
 void messageReceived(String& topic, String& payload) {
   // Serial.println("incoming: " + topic + " - " + payload);
   if (topic == topic_base + "/CMD") {
@@ -210,6 +204,23 @@ void messageReceived(String& topic, String& payload) {
 }
 
 
+//button 0
+//short press: 
+//long press: deep sleep / wake-up
+
+//on start, if button0&1 pressed)
+
+
+//  button 0  | button 1
+//  pressed(long)   | released   ---> deep sleep, power on/off
+
+//  pressed(long) | pressed(long)   ---> wifi/ble mode change
+//  pressed   | released ---> wifi mode 
+//  pressed   | released ---> ble mode 
+
+
+
+
 const char* path = "/acc.txt";
 
 // ref: (13:04) https://www.youtube.com/watch?v=JFDiqPHw3Vc&list=PL4s_3hkDEX_0YpVkHRY3MYHfGxxBNyKkj&index=100&t=590s
@@ -220,36 +231,143 @@ const char* path = "/acc.txt";
 //   40  |       82         |            18       |      57600       | 100kHz
 //   20  |       77         |            13       |      28800       | 100kHz
 //   10  |       74         |            11       |      14400       | 100kHz
+
+#define PIN_BUTTON1 26
+#define PIN_BUTTON2 25
+#define PIN_LED1 16
+#define PIN_LED2 17
+
+
+Button button1(PIN_BUTTON1);
+Button button2(PIN_BUTTON2);
+
+void handleButton1Press(){
+  button1.pressStartTime=millis();
+  Serial.print("button1 pressed, t[ms]=");
+  Serial.println(button1.pressStartTime);
+}
+void handleButton2Press(){
+  button2.pressStartTime=millis();
+  Serial.print("button2 pressed, t[ms]=");
+  Serial.println(button2.pressStartTime);
+}
+
 void setup() {
   Serial.begin(230400);
-  pinMode(25, INPUT_PULLUP);
+  pinMode(PIN_BUTTON1, INPUT_PULLUP);
+  pinMode(PIN_BUTTON2, INPUT_PULLUP);
   pinMode(32, INPUT);
-  pinMode(16, OUTPUT);
-  pinMode(17, OUTPUT);
+  pinMode(PIN_LED1, OUTPUT);
+  pinMode(PIN_LED2, OUTPUT);
   pinMode(18, OUTPUT);
   pinMode(34, INPUT);
 
-  digitalWrite(16, HIGH);
-  delay(500);
-  digitalWrite(17, HIGH);
-  delay(500);
-  digitalWrite(16, LOW);
-  delay(500);
-  digitalWrite(17, LOW);
+  attachInterrupt(digitalPinToInterrupt(button1.pin), handleButton1Press, FALLING);
+  attachInterrupt(digitalPinToInterrupt(button2.pin), handleButton2Press, FALLING);
 
-  setSensorPRS();
-  setSensorIMU();
-  setSensorTRH();
-  // Define Dataformat
-  // acc[0][0]=0xA0;
-  // acc[0][1]=LEN_ACCSMPL;
-  acc[0] = 0xA0;
-  acc[1] = LEN_ACCSMPL;
-  prs[0] = 0xA1;
-  prs[1] = LEN_PRSSMPL;
-  trh[0] = 0xA2;
-  trh[1] = LEN_PRSSMPL;
+  for(int i = 0 ; i<3 ; i++){
+    digitalWrite(PIN_LED1, HIGH);
+    delay(300);
+    digitalWrite(PIN_LED1, LOW);
+    delay(500);
+  }  
 
+
+
+
+  // EEPROM setup
+  init_eeprom();
+  eepromSetup_custom();
+  // print params via serial port
+  print_settings();
+
+  // SPIFFS setup
+  if (!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)) {
+    Serial.println("SPIFFS Mount Failed");
+    return;
+  }
+  listDir(SPIFFS, "/", 0);
+  deleteFile(SPIFFS, "/acc.txt");
+  int8_t accdum[1];
+  Serial.println("writing data");
+  writeFileBytes(SPIFFS, path, (uint8_t*)accdum, 0);
+
+
+  if(button1.isPressed() && button2.isPressed()){ // BLE/WiFi setting mode
+    op_mode = OP_MODE_SETTING;
+    Serial.println("OP_MODE_SETTING");
+  }else{
+    if(op_mode==OP_MODE_WIFI){
+      Serial.println("OP_MODE_WIFI");
+      op_mode = OP_MODE_WIFI;
+    }else{
+      Serial.println("OP_MODE_BLE");
+      op_mode = OP_MODE_BLE;
+    }
+  }
+
+  if(op_mode==OP_MODE_BLE){
+    for(int i = 0 ; i<3 ; i++){
+      digitalWrite(PIN_LED1, HIGH);
+      delay(300);
+      digitalWrite(PIN_LED1, LOW);
+      delay(500);
+    }  
+    // BLE setup
+    ble_setup_custom();
+    delay(1000);
+
+  }else if(op_mode==OP_MODE_WIFI){
+    for(int i = 0 ; i<3 ; i++){
+      digitalWrite(PIN_LED2, HIGH);
+      delay(300);
+      digitalWrite(PIN_LED2, LOW);
+      delay(500);
+    }  
+    //sensor setup
+    setSensorPRS();
+    setSensorIMU();
+    setSensorTRH();
+    // Define Dataformat
+    acc[0] = 0xA0;
+    acc[1] = LEN_ACCSMPL;
+    prs[0] = 0xA1;
+    prs[1] = LEN_PRSSMPL;
+    trh[0] = 0xA2;
+    trh[1] = LEN_PRSSMPL;
+
+    // WiFi connection
+    Serial.println("connecting to AP");
+    bool isAPconnected = false;
+    // WiFi.begin(ssid, pass);
+    for (int i = 0; i < 3; i++) {
+      isAPconnected = ConnectToRouter(AP_id.c_str(), AP_pw.c_str());
+      if (isAPconnected) {
+        break;
+      }
+    }
+    if (isAPconnected) {
+      Serial.println("AP connected");
+    } else {
+      Serial.println("AP not connected. Proceed anyway..");
+    }
+    // MQTT setup
+    MQTTclient.begin(server_addr.c_str(),server_port, net);
+    MQTTclient.onMessage(messageReceived);
+    connect();
+
+  }else if(op_mode==OP_MODE_SETTING){
+    for(int i = 0 ; i<3 ; i++){
+      digitalWrite(PIN_LED1, HIGH);
+      digitalWrite(PIN_LED2, HIGH);
+      delay(300);
+      digitalWrite(PIN_LED1, LOW);
+      digitalWrite(PIN_LED2, LOW);
+      delay(500);
+    }
+    Serial.println("setting done. restarting..");
+    ESP.restart();
+  }
 
   // --------------------------OTA setup---------------------------
   // Serial.println("Booting");
@@ -315,63 +433,13 @@ void setup() {
   digitalWrite(16, LOW);
   digitalWrite(17, LOW);
 
-  attachInterrupt(digitalPinToInterrupt(25), intSLP, HIGH);
+  // attachInterrupt(digitalPinToInterrupt(25), intSLP, HIGH);
+  // attachInterrupt(digitalPinToInterrupt(26), handleButton1Press, FALLING);
   // attachInterrupt(digitalPinToInterrupt(32), MotionINT, FALLING);
-
-  // SPIFFS setup
-  if (!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)) {
-    Serial.println("SPIFFS Mount Failed");
-    return;
-  }
-  listDir(SPIFFS, "/", 0);
-  deleteFile(SPIFFS, "/acc.txt");
-  int8_t accdum[1];
-  Serial.println("writing data");
-  writeFileBytes(SPIFFS, path, (uint8_t*)accdum, 0);
-
-
-  // EEPROM setup
-  init_eeprom();
-  eepromSetup_custom();
-  // print params via serial port
-  print_settings();
-
-  // BLE setup
-  bool bBLEactivated = true;
-  if (bBLEactivated) {
-    ble_setup_custom();
-  }
-  delay(1000);
-
-  // WiFi connection
-  Serial.println("connecting to AP");
-  bool isAPconnected = false;
-  // WiFi.begin(ssid, pass);
-  for (int i = 0; i < 3; i++) {
-    isAPconnected = ConnectToRouter(AP_id.c_str(), AP_pw.c_str());
-    if (isAPconnected) {
-      break;
-    }
-  }
-  if (isAPconnected) {
-    Serial.println("AP connected");
-  } else {
-    Serial.println("AP not connected. Proceed anyway..");
-  }
-
-  // MQTT setup
-  MQTTclient.begin(server_addr.c_str(),server_port, net);
-  // MQTTclient.begin("172.30.1.19",8404, net);
-  MQTTclient.onMessage(messageReceived);
-  // MQTTclient.onMessageAdvanced(messageReceivedAdvanced);
-
-  connect();
-
 
 
 
   // light_sleep_purpet();
-
   // deep_sleep_perpet();
 
   digitalWrite(16, LOW);
@@ -406,238 +474,252 @@ void loop() {
   // } else {
   // }
 
+  if (button1.isPressed()) {
+    unsigned long pressDuration = millis() - button1.pressStartTime;
+    delay(200);
+    if (pressDuration >= 3000) {
+      Serial.println("Long press detected. Restarting..");
+      delay(1000);
+      ESP.restart();
+    }
+  }
 
-  // BLE Control
-  if (deviceConnected) {
+  if(op_mode==OP_MODE_WIFI){
+    MQTTclient.loop();
+    delay(10);  // <- fixes some issues with WiFi stability
+    if (!MQTTclient.connected()) {
+      connect();
+    }
+
     bViewerActive = true;
-    pTxCharacteristic->setValue(&txValue, 1);
-    pTxCharacteristic->notify();
-    txValue++;
-    delay(50);  // bluetooth stack will go into congestion, if too many packets are sent
-  } else {
-    bViewerActive = false;
-  }
-
-  // if BLE is disconnected
-  if (!deviceConnected && oldDeviceConnected) {
-    delay(500);                   // give the bluetooth stack the chance to get things ready
-    pServer->startAdvertising();  // restart advertising
-    Serial.println("start advertising");
-    oldDeviceConnected = deviceConnected;
-  }
-  // connecting
-  if (deviceConnected && !oldDeviceConnected) {
-    // do stuff here on connecting
-    oldDeviceConnected = deviceConnected;
-  }
-
-
-  MQTTclient.loop();
-  delay(10);  // <- fixes some issues with WiFi stability
-  if (!MQTTclient.connected()) {
-    connect();
-  }
-
-  bViewerActive = true;
-  if (bViewerActive == true) {
-    setCpuFrequencyMhz(80); //No BT/Wifi: 10,20,40 MHz, for BT/Wifi, 80,160,240MHz
-    //function - sensing
-    if (!bTimerSet) {
-      bTimerSet=true;
-      timestamp[0] = millis();
-      timestamp[1] = millis();
-      timestamp[2] = millis();
-    }
-
-    // save sensor data
-    // IMU: 30Hz, Alt: 10 Hz, RH: 10s, T: 10s
-    if (millis() > timestamp[0]) {
-
-      if (idx[0] == 0) {
-        Serial.println("timestamp[0]=" + String(timestamp[0]));
-        memcpy(&acc[2], &timestamp[0], sizeof(uint32_t));
+    if (bViewerActive == true) {
+      setCpuFrequencyMhz(80); //No BT/Wifi: 10,20,40 MHz, for BT/Wifi, 80,160,240MHz
+      //function - sensing
+      if (!bTimerSet) {
+        bTimerSet=true;
+        timestamp[0] = millis();
+        timestamp[1] = millis();
+        timestamp[2] = millis();
       }
-      timestamp[0] += dt[0];
-      getSensorDataIMU(acc + 3 * idx[0] + 6);
-      Serial.print("acc:");
-      Serial.print(acc[3*idx[0]+6]);
-      Serial.print("\t");
-      Serial.print(acc[3*idx[0]+7]);
-      Serial.print("\t");
-      Serial.print(acc[3*idx[0]+8]);
-      Serial.println();
 
-      idx[0]++;
-      if (idx[0] == LEN_ACCSMPL) {
-        Serial.println("acc tx!");
-        uint32_t dum = 0;
-        memcpy(&dum, &acc[2], sizeof(uint32_t));
-        Serial.println("dum:" + String(dum));
-        MQTTclient.publish((topic_base + "/acc").c_str(), (const char*)acc, LEN_ACCSMPL * 3 + 6);
-        idx[0] = 0;
-      }
-    }
+      // save sensor data
+      // IMU: 30Hz, Alt: 10 Hz, RH: 10s, T: 10s
+      if (millis() > timestamp[0]) {
 
-    if (millis() > timestamp[1]) {
-
-      if (idx[1] == 0) {
-        Serial.println("timestamp[1]=" + String(timestamp[1]));
-        memcpy(&prs[2], &timestamp[1], sizeof(uint32_t));
-      }
-      timestamp[1] += dt[1];
-      getSensorPressure(prs + 4 * idx[1] + 6);
-      idx[1]++;
-      if (idx[1] == LEN_PRSSMPL) {
-        idx[1] = 0;
-        Serial.println("prs tx!");
-        MQTTclient.publish((topic_base + "/prs").c_str(), (const char*)prs, LEN_PRSSMPL * 4 + 6);
-        for(int i = 0;i<LEN_PRSSMPL;i++){
-          Serial.print(i);
-          Serial.print(":");
-          float rxbuf;
-          memcpy(&rxbuf,prs+4*i+6,sizeof(float));
-          Serial.println(rxbuf);
-        }
-      }
-    }
-
-
-    if (millis() > timestamp[2]) {
-
-      if (idx[2] == 0) {
-        Serial.println("timestamp[2]=" + String(timestamp[2]));
-        memcpy(&trh[2], &timestamp[2], sizeof(uint32_t));
-      }
-      timestamp[2] += dt[2];
-      getSensorDataTRH(trh + 4 * idx[2] + 6);
-      // int16_t t_data, rh_data;
-      // memcpy(&t_data,trh+4*idx[1]+6,2);
-      // memcpy(&rh_data,trh+4*idx[1]+8,2);
-      // Serial.print("trh["+String(idx[1])+"]:");
-      // Serial.println(String(t_data)+","+String(rh_data));
-      idx[2]++;
-      if (idx[2] == LEN_TRHSMPL) {
-        idx[2] = 0;
-        Serial.println("trh tx!");
-        MQTTclient.publish((topic_base + "/trh").c_str(), (const char*)trh, LEN_TRHSMPL * 4 + 6);
-      }
-    }
-
-  } else {
-    Serial.println("owner:non-active");
-    if (bPetActive == true) {
-      Serial.println("pet:active");
-      WiFi.disconnect();
-      WiFi.mode(WIFI_OFF);
-      delay(10);
-      // setCpuFrequencyMhz(20);  //No BT/Wifi: 10,20,40 MHz, for BT/Wifi, 80,160,240MHz
-      // delay(10);
-      Serial.println("appending data");
-
-      uint32_t timestamp_dive = millis();
-      idx[0] = 0;
-      // timestamp[0] = millis();  //check it later
-      while (true) {
-        //logging sensor data
-        // IMU: 30Hz, Alt: 10 Hz, RH: 10s, T: 10s
-        // if (millis() > timestamp[0]) {
         if (idx[0] == 0) {
-          timestamp[0] = millis();
-          Serial.println(timestamp[0]);
+          Serial.println("timestamp[0]=" + String(timestamp[0]));
           memcpy(&acc[2], &timestamp[0], sizeof(uint32_t));
         }
         timestamp[0] += dt[0];
-        getSensorDataIMU(&acc[3 * idx[0] + 6]);
+        getSensorDataIMU(acc + 3 * idx[0] + 6);
+        Serial.print("acc:");
+        Serial.print(acc[3*idx[0]+6]);
+        Serial.print("\t");
+        Serial.print(acc[3*idx[0]+7]);
+        Serial.print("\t");
+        Serial.print(acc[3*idx[0]+8]);
+        Serial.println();
 
         idx[0]++;
         if (idx[0] == LEN_ACCSMPL) {
+          Serial.println("acc tx!");
           uint32_t dum = 0;
           memcpy(&dum, &acc[2], sizeof(uint32_t));
           Serial.println("dum:" + String(dum));
-          appendFileBytes(SPIFFS, path, (uint8_t*)acc, LEN_ACCSMPL * 3 + 6);
+          MQTTclient.publish((topic_base + "/acc").c_str(), (const char*)acc, LEN_ACCSMPL * 3 + 6);
           idx[0] = 0;
-          iter++;
-        }
-        // }
-
-        if (millis() - timestamp_dive > 120 * 1000) {
-          break;
         }
       }
 
-      setCpuFrequencyMhz(80);  //No BT/Wifi: 10,20,40 MHz, for BT/Wifi, 80,160,240MHz
+      if (millis() > timestamp[1]) {
 
-      Serial.println("connecting to AP");
-      bool isAPconnected = false;
-      // WiFi.begin(ssid, pass);
-      for (int i = 0; i < 3; i++) {
-        isAPconnected = ConnectToRouter(AP_id.c_str(), AP_pw.c_str());
-        if (isAPconnected) {
-          break;
+        if (idx[1] == 0) {
+          Serial.println("timestamp[1]=" + String(timestamp[1]));
+          memcpy(&prs[2], &timestamp[1], sizeof(uint32_t));
         }
-      }
-      if (isAPconnected) {
-        Serial.println("AP connected");
-      } else {
-        Serial.println("AP not connected. Proceed anyway..");
-      }
-
-      //transmitting the log
-      if (!MQTTclient.connected()) {
-        connect();
-      }
-      Serial.printf("Reading file: %s\r\n", path);
-      File file = SPIFFS.open(path);
-      if (!file || file.isDirectory()) {
-        Serial.println("- failed to open file for reading");
-        return;
-      }
-      Serial.println("- read from file:");
-      uint8_t buffer[LEN_ACCSMPL * 3 + 6];
-      // while(file.available()){
-      if (file.available()) {
-        for (int i = 0; i < iter; i++) {
-          file.seek(i * (LEN_ACCSMPL * 3 + 6));
-          file.read(buffer, LEN_ACCSMPL * 3 + 6);
-          // for (int i = 0; i < LEN_ACCSMPL * 3; i++) {
-          for (int j = 2; j < 6; j++) {
-            Serial.println(buffer[j]);
-            // if (i % 3 == 2) {
-            //   Serial.println();
-            // } else {
-            //   Serial.print(",");
-            // }
+        timestamp[1] += dt[1];
+        getSensorPressure(prs + 4 * idx[1] + 6);
+        idx[1]++;
+        if (idx[1] == LEN_PRSSMPL) {
+          idx[1] = 0;
+          Serial.println("prs tx!");
+          MQTTclient.publish((topic_base + "/prs").c_str(), (const char*)prs, LEN_PRSSMPL * 4 + 6);
+          for(int i = 0;i<LEN_PRSSMPL;i++){
+            Serial.print(i);
+            Serial.print(":");
+            float rxbuf;
+            memcpy(&rxbuf,prs+4*i+6,sizeof(float));
+            Serial.println(rxbuf);
           }
-          Serial.println("-----------------------");
-          // Serial.println(i);
-          // MQTTclient.publish("perpet/SerialNumber/acc", (const char*)buffer,LEN_ACCSMPL*3+6);
-          MQTTclient.publish((topic_base + "/acc").c_str(), (const char*)buffer, LEN_ACCSMPL * 3 + 6);
         }
-      } else {
-        Serial.println("File not available!");
-        delay(5000);
       }
-      iter = 0;
-      file.close();
 
-      if (SPIFFS.remove("/acc.txt")) {
-        Serial.println("File '/acc.txt' deleted.");
-      } else {
-        Serial.println("Error deleting file '/acc.txt'.");
+
+      if (millis() > timestamp[2]) {
+
+        if (idx[2] == 0) {
+          Serial.println("timestamp[2]=" + String(timestamp[2]));
+          memcpy(&trh[2], &timestamp[2], sizeof(uint32_t));
+        }
+        timestamp[2] += dt[2];
+        getSensorDataTRH(trh + 4 * idx[2] + 6);
+        // int16_t t_data, rh_data;
+        // memcpy(&t_data,trh+4*idx[1]+6,2);
+        // memcpy(&rh_data,trh+4*idx[1]+8,2);
+        // Serial.print("trh["+String(idx[1])+"]:");
+        // Serial.println(String(t_data)+","+String(rh_data));
+        idx[2]++;
+        if (idx[2] == LEN_TRHSMPL) {
+          idx[2] = 0;
+          Serial.println("trh tx!");
+          MQTTclient.publish((topic_base + "/trh").c_str(), (const char*)trh, LEN_TRHSMPL * 4 + 6);
+        }
       }
 
     } else {
-      setCpuFrequencyMhz(20);  //No BT/Wifi: 10,20,40 MHz, for BT/Wifi, 80,160,240MHz
-      esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR);
-      Serial.println("Setup ESP32 to sleep for every " + String(TIME_TO_SLEEP) + " Seconds");
-      Serial.println("Going to sleep now");
-      Serial.flush();
-      // WiFi.disconnect(true);
-      // WiFi.mode(WIFI_OFF);
-      esp_light_sleep_start();
-      Serial.println("WiFi turning on!");
+      Serial.println("owner:non-active");
+      if (bPetActive == true) {
+        Serial.println("pet:active");
+        WiFi.disconnect();
+        WiFi.mode(WIFI_OFF);
+        delay(10);
+        // setCpuFrequencyMhz(20);  //No BT/Wifi: 10,20,40 MHz, for BT/Wifi, 80,160,240MHz
+        // delay(10);
+        Serial.println("appending data");
+
+        uint32_t timestamp_dive = millis();
+        idx[0] = 0;
+        // timestamp[0] = millis();  //check it later
+        while (true) {
+          //logging sensor data
+          // IMU: 30Hz, Alt: 10 Hz, RH: 10s, T: 10s
+          // if (millis() > timestamp[0]) {
+          if (idx[0] == 0) {
+            timestamp[0] = millis();
+            Serial.println(timestamp[0]);
+            memcpy(&acc[2], &timestamp[0], sizeof(uint32_t));
+          }
+          timestamp[0] += dt[0];
+          getSensorDataIMU(&acc[3 * idx[0] + 6]);
+
+          idx[0]++;
+          if (idx[0] == LEN_ACCSMPL) {
+            uint32_t dum = 0;
+            memcpy(&dum, &acc[2], sizeof(uint32_t));
+            Serial.println("dum:" + String(dum));
+            appendFileBytes(SPIFFS, path, (uint8_t*)acc, LEN_ACCSMPL * 3 + 6);
+            idx[0] = 0;
+            iter++;
+          }
+          // }
+
+          if (millis() - timestamp_dive > 120 * 1000) {
+            break;
+          }
+        }
+
+        setCpuFrequencyMhz(80);  //No BT/Wifi: 10,20,40 MHz, for BT/Wifi, 80,160,240MHz
+
+        Serial.println("connecting to AP");
+        bool isAPconnected = false;
+        // WiFi.begin(ssid, pass);
+        for (int i = 0; i < 3; i++) {
+          isAPconnected = ConnectToRouter(AP_id.c_str(), AP_pw.c_str());
+          if (isAPconnected) {
+            break;
+          }
+        }
+        if (isAPconnected) {
+          Serial.println("AP connected");
+        } else {
+          Serial.println("AP not connected. Proceed anyway..");
+        }
+
+        //transmitting the log
+        if (!MQTTclient.connected()) {
+          connect();
+        }
+        Serial.printf("Reading file: %s\r\n", path);
+        File file = SPIFFS.open(path);
+        if (!file || file.isDirectory()) {
+          Serial.println("- failed to open file for reading");
+          return;
+        }
+        Serial.println("- read from file:");
+        uint8_t buffer[LEN_ACCSMPL * 3 + 6];
+        // while(file.available()){
+        if (file.available()) {
+          for (int i = 0; i < iter; i++) {
+            file.seek(i * (LEN_ACCSMPL * 3 + 6));
+            file.read(buffer, LEN_ACCSMPL * 3 + 6);
+            // for (int i = 0; i < LEN_ACCSMPL * 3; i++) {
+            for (int j = 2; j < 6; j++) {
+              Serial.println(buffer[j]);
+              // if (i % 3 == 2) {
+              //   Serial.println();
+              // } else {
+              //   Serial.print(",");
+              // }
+            }
+            Serial.println("-----------------------");
+            // Serial.println(i);
+            // MQTTclient.publish("perpet/SerialNumber/acc", (const char*)buffer,LEN_ACCSMPL*3+6);
+            MQTTclient.publish((topic_base + "/acc").c_str(), (const char*)buffer, LEN_ACCSMPL * 3 + 6);
+          }
+        } else {
+          Serial.println("File not available!");
+          delay(5000);
+        }
+        iter = 0;
+        file.close();
+
+        if (SPIFFS.remove("/acc.txt")) {
+          Serial.println("File '/acc.txt' deleted.");
+        } else {
+          Serial.println("Error deleting file '/acc.txt'.");
+        }
+
+      } else {
+        setCpuFrequencyMhz(20);  //No BT/Wifi: 10,20,40 MHz, for BT/Wifi, 80,160,240MHz
+        esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR);
+        Serial.println("Setup ESP32 to sleep for every " + String(TIME_TO_SLEEP) + " Seconds");
+        Serial.println("Going to sleep now");
+        Serial.flush();
+        // WiFi.disconnect(true);
+        // WiFi.mode(WIFI_OFF);
+        esp_light_sleep_start();
+        Serial.println("WiFi turning on!");
+      }
+    }
+
+
+  }else if(op_mode==OP_MODE_BLE){    // BLE Control
+    if (deviceConnected) {
+      bViewerActive = true;
+      pTxCharacteristic->setValue(&txValue, 1);
+      pTxCharacteristic->notify();
+      txValue++;
+      delay(50);  // bluetooth stack will go into congestion, if too many packets are sent
+    } else {
+      bViewerActive = false;
+    }
+
+    // if BLE is disconnected
+    if (!deviceConnected && oldDeviceConnected) {
+      delay(500);                   // give the bluetooth stack the chance to get things ready
+      pServer->startAdvertising();  // restart advertising
+      Serial.println("start advertising");
+      oldDeviceConnected = deviceConnected;
+    }
+    // connecting
+    if (deviceConnected && !oldDeviceConnected) {
+      // do stuff here on connecting
+      oldDeviceConnected = deviceConnected;
     }
   }
+
+
+ 
 
   // if (analogVolts < 3300) {
   //   digitalWrite(16, LOW);
