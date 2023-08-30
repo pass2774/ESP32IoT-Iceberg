@@ -234,8 +234,8 @@ const char* path = "/acc.txt";
 
 #define PIN_BUTTON1 26
 #define PIN_BUTTON2 25
-#define PIN_LED1 16
-#define PIN_LED2 17
+#define PIN_LED1 17
+#define PIN_LED2 16
 
 
 Button button1(PIN_BUTTON1);
@@ -265,53 +265,43 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(button1.pin), handleButton1Press, FALLING);
   attachInterrupt(digitalPinToInterrupt(button2.pin), handleButton2Press, FALLING);
 
-  for(int i = 0 ; i<3 ; i++){
-    digitalWrite(PIN_LED1, HIGH);
-    delay(300);
-    digitalWrite(PIN_LED1, LOW);
-    delay(500);
-  }  
-
-
-
-
   // EEPROM setup
   init_eeprom();
   eepromSetup_custom();
   // print params via serial port
   print_settings();
 
-  // SPIFFS setup
-  if (!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)) {
-    Serial.println("SPIFFS Mount Failed");
-    return;
-  }
-  listDir(SPIFFS, "/", 0);
-  deleteFile(SPIFFS, "/acc.txt");
-  int8_t accdum[1];
-  Serial.println("writing data");
-  writeFileBytes(SPIFFS, path, (uint8_t*)accdum, 0);
-
-
+  digitalWrite(PIN_LED2, HIGH);
+  op_mode=getOpMode();
   if(button1.isPressed() && button2.isPressed()){ // BLE/WiFi setting mode
-    op_mode = OP_MODE_SETTING;
-    Serial.println("OP_MODE_SETTING");
-  }else{
-    if(op_mode==OP_MODE_WIFI){
-      Serial.println("OP_MODE_WIFI");
-      op_mode = OP_MODE_WIFI;
-    }else{
-      Serial.println("OP_MODE_BLE");
-      op_mode = OP_MODE_BLE;
-    }
-  }
-
-  if(op_mode==OP_MODE_BLE){
-    for(int i = 0 ; i<3 ; i++){
+    int waitCount = 0;
+    delay(2000);
+    while(waitCount<5){
       digitalWrite(PIN_LED1, HIGH);
       delay(300);
       digitalWrite(PIN_LED1, LOW);
-      delay(500);
+      delay(1700);
+      if(button1.isPressed()){
+        Serial.println("OP_MODE_WIFI");
+        op_mode = OP_MODE_WIFI;
+        break;
+      }else if(button2.isPressed()){
+        Serial.println("OP_MODE_BLE");
+        op_mode = OP_MODE_BLE;
+        break;
+      }
+      waitCount++;
+    }
+  }
+  digitalWrite(PIN_LED2, LOW);
+  delay(1000);
+
+  if(op_mode==OP_MODE_BLE){
+    for(int i = 0 ; i<3 ; i++){
+      digitalWrite(PIN_LED2, HIGH);
+      delay(300);
+      digitalWrite(PIN_LED2, LOW);
+      delay(700);
     }  
     // BLE setup
     ble_setup_custom();
@@ -319,10 +309,10 @@ void setup() {
 
   }else if(op_mode==OP_MODE_WIFI){
     for(int i = 0 ; i<3 ; i++){
-      digitalWrite(PIN_LED2, HIGH);
+      digitalWrite(PIN_LED1, HIGH);
       delay(300);
-      digitalWrite(PIN_LED2, LOW);
-      delay(500);
+      digitalWrite(PIN_LED1, LOW);
+      delay(700);
     }  
     //sensor setup
     setSensorPRS();
@@ -335,6 +325,18 @@ void setup() {
     prs[1] = LEN_PRSSMPL;
     trh[0] = 0xA2;
     trh[1] = LEN_PRSSMPL;
+
+    // SPIFFS setup
+    if (!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)) {
+      Serial.println("SPIFFS Mount Failed");
+      return;
+    }
+    listDir(SPIFFS, "/", 0);
+    deleteFile(SPIFFS, "/acc.txt");
+    int8_t accdum[1];
+    Serial.println("writing data");
+    writeFileBytes(SPIFFS, path, (uint8_t*)accdum, 0);
+
 
     // WiFi connection
     Serial.println("connecting to AP");
@@ -356,17 +358,17 @@ void setup() {
     MQTTclient.onMessage(messageReceived);
     connect();
 
-  }else if(op_mode==OP_MODE_SETTING){
+  }else{
+    op_mode=OP_MODE_SLEEP;
     for(int i = 0 ; i<3 ; i++){
       digitalWrite(PIN_LED1, HIGH);
       digitalWrite(PIN_LED2, HIGH);
-      delay(300);
+      delay(200);
       digitalWrite(PIN_LED1, LOW);
       digitalWrite(PIN_LED2, LOW);
-      delay(500);
+      delay(800);
     }
-    Serial.println("setting done. restarting..");
-    ESP.restart();
+    Serial.println("DEEP SLEEP MODE");
   }
 
   // --------------------------OTA setup---------------------------
@@ -427,23 +429,17 @@ void setup() {
   // Serial.println(WiFi.localIP());
   // -------------------------------------OTA setup-----------------------------------------------
 
-  digitalWrite(16, HIGH);
-  digitalWrite(17, HIGH);
-  delay(2000);
-  digitalWrite(16, LOW);
-  digitalWrite(17, LOW);
+  digitalWrite(PIN_LED1, LOW);
+  digitalWrite(PIN_LED2, LOW);
 
   // attachInterrupt(digitalPinToInterrupt(25), intSLP, HIGH);
   // attachInterrupt(digitalPinToInterrupt(26), handleButton1Press, FALLING);
   // attachInterrupt(digitalPinToInterrupt(32), MotionINT, FALLING);
 
 
-
   // light_sleep_purpet();
   // deep_sleep_perpet();
 
-  digitalWrite(16, LOW);
-  digitalWrite(17, LOW);
   digitalWrite(18, HIGH);
 }
 
@@ -474,13 +470,22 @@ void loop() {
   // } else {
   // }
 
+  // Button UI
   if (button1.isPressed()) {
-    unsigned long pressDuration = millis() - button1.pressStartTime;
     delay(200);
-    if (pressDuration >= 3000) {
-      Serial.println("Long press detected. Restarting..");
-      delay(1000);
-      ESP.restart();
+    if (millis() - button1.pressStartTime > 3000) {
+      if (button2.isPressed() && millis() - button2.pressStartTime > 3000) {
+        Serial.println("Long press detected. Restarting..");
+        for(int i = 0 ; i<3 ; i++){
+          digitalWrite(PIN_LED1, HIGH);
+          delay(300);
+          digitalWrite(PIN_LED1, LOW);
+          delay(400);
+        }
+        op_mode=OP_MODE_SLEEP;
+        setOpMode(op_mode);
+        ESP.restart();
+      }
     }
   }
 

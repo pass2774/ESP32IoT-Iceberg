@@ -37,9 +37,10 @@ void setSensorPRS() {
     for (int i = 0; i < 10; i++) {
       digitalWrite(16, HIGH);
       digitalWrite(17, HIGH);
-      delay(1000);
+      delay(300);
       digitalWrite(16, LOW);
       digitalWrite(17, LOW);
+      delay(700);
     }
   }
 }
@@ -96,10 +97,10 @@ void setSensorTRH() {
     for (int i = 0; i < 10; i++) {
       digitalWrite(16, HIGH);
       digitalWrite(17, HIGH);
-      delay(500);
+      delay(300);
       digitalWrite(16, LOW);
       digitalWrite(17, LOW);
-      delay(500);
+      delay(700);
     }
   }
 }
@@ -176,10 +177,10 @@ void setSensorIMU() {
     for (int i = 0; i < 10; i++) {
       digitalWrite(16, HIGH);
       digitalWrite(17, HIGH);
-      delay(500);
+      delay(300);
       digitalWrite(16, LOW);
       digitalWrite(17, LOW);
-      delay(500);
+      delay(700);
     }
   }
 

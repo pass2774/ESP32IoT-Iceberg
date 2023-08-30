@@ -6,6 +6,7 @@
 #define OP_MODE_BLE 1
 #define OP_MODE_WIFI 2
 #define OP_MODE_OTA 3
+#define OP_MODE_SLEEP 4
 
 //ESP32 by Espressif Systems Version 2.0.5. Other version may have different EEPROMClass methods
 
@@ -196,7 +197,17 @@ void eepromSetup_custom(){
   // setDevParams();
   // setSensorParams();
 }
+void setOpMode(int _mode){
+  OP_MODE.put(0, _mode);
+  OP_MODE.commit();
+  return;
+}
 
+int getOpMode(){
+  int _mode;
+  OP_MODE.get(0, _mode);
+  return _mode;
+}
 
 void setDevInfo(){
   devInfo.id="PERPET0000";
